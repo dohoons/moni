@@ -1,0 +1,91 @@
+import { getAccessToken } from './google-oauth';
+import type { ParsedInput } from '../lib/parser';
+
+const GAS_WEB_APP_URL = import.meta.env.VITE_GAS_WEB_APP_URL;
+
+interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+/**
+ * GAS Web App은 CORS preflight를 처리하지 못하므로,
+ * text/plain Content-Type으로 Simple Request를 만듭니다.
+ *
+ * Google OAuth Access Token을 포함하여 요청 전송
+ */
+async function request<T = any>(
+  path: string,
+  data?: any
+): Promise<ApiResponse<T>> {
+  // Google Access Token 획득
+  const accessToken = await getAccessToken();
+
+  // payload에 path, access_token, body 포함
+  const payload = {
+    path,
+    access_token: accessToken,
+    ...(data && { body: data })
+  };
+
+  const response = await fetch(GAS_WEB_APP_URL, {
+    method: 'POST',
+    mode: 'cors',
+    redirect: 'follow',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text();
+
+  // HTML 응답인 경우 (에러 페이지 등)
+  if (text.trim().startsWith('<!doctype') || text.trim().startsWith('<html')) {
+    throw new Error('Invalid response');
+  }
+
+  try {
+    const result = JSON.parse(text) as ApiResponse<T>;
+    // success: false인 경우 에러로 처리
+    if (!result.success && result.error) {
+      throw new Error(result.error);
+    }
+    return result;
+  } catch {
+    throw new Error('Invalid response: ' + text.substring(0, 100));
+  }
+}
+
+export const api = {
+  createRecord: async (data: ParsedInput & { id?: string; date?: string }) => {
+    return request('/api/record', {
+      ...data,
+      date: data.date || new Date().toISOString().split('T')[0],
+    });
+  },
+
+  updateRecord: async (id: string, data: Partial<ParsedInput> & { date?: string }) => {
+    return request('/api/record/update', {
+      id,
+      ...data,
+    });
+  },
+
+  deleteRecord: async (id: string) => {
+    return request('/api/record/delete', { id });
+  },
+
+  getRecords: async (params?: { startDate?: string; endDate?: string; limit?: number; cursor?: string }) => {
+    return request('/api/records', params || {});
+  },
+
+  getStats: async (params?: { year?: number; month?: number }) => {
+    return request('/api/stats', params || {});
+  },
+
+  setup: async () => {
+    return request('/api/setup');
+  },
+};
