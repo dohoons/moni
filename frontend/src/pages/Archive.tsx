@@ -122,7 +122,7 @@ function Archive() {
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-2xl px-4 pt-24 pb-6 sm:px-6">
+      <main className="mx-auto max-w-2xl px-4 safe-area-header pb-6 sm:px-6">
         {/* Month Selector */}
         <div className="mb-6 rounded-xl bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">

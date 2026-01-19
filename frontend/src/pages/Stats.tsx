@@ -70,7 +70,7 @@ function Stats() {
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-2xl space-y-6 px-4 pt-24 pb-6 sm:px-6">
+      <main className="mx-auto max-w-2xl space-y-6 px-4 safe-area-header pb-6 sm:px-6">
         {/* 탭 메뉴 */}
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
           <div className="flex border-b border-gray-200">
