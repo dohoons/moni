@@ -21,7 +21,7 @@ function SyncIndicator({ onRecordsUpdated }: SyncIndicatorProps) {
 
   return (
     <div
-      className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 sm:px-5 ${
+      className={`mb-4 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 sm:px-5 ${
         isOnline
           ? 'border-green-200 bg-green-50'
           : 'border-red-200 bg-red-50'
