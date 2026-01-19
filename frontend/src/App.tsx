@@ -11,7 +11,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000, // 5분
       gcTime: 10 * 60 * 1000, // 10분
-      retry: 1,
+      retry: false, // 인증 에러 시 자동 재시도 방지
     },
   },
 });

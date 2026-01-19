@@ -102,6 +102,8 @@ export async function getAccessToken(): Promise<string> {
 
 /**
  * 로그아웃
+ *
+ * 주의: 오프라인 대기열과 캐시도 초기화해야 보안상 안전함
  */
 export function signOutGoogle() {
   const token = accessToken;
@@ -118,6 +120,15 @@ export function signOutGoogle() {
     }
     window.google.accounts.id.disableAutoSelect();
   }
+}
+
+/**
+ * 오프라인 대기열 초기화
+ * (별도 export해서 signOutGoogle과 함께 호출하도록)
+ */
+export function clearOfflineData() {
+  localStorage.removeItem('moni_pending_records');
+  localStorage.removeItem('moni_last_sync');
 }
 
 /**

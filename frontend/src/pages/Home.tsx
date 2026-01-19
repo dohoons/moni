@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { signOutGoogle } from '../services/google-oauth';
 import { api } from '../services/api';
 import { useSync } from '../hooks/useSync';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,7 +24,7 @@ const PAGE_SIZE = 20;
 function Home() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, setUser } = useAuth();
+  const { user, logout } = useAuth();
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -139,9 +138,8 @@ function Home() {
     }
   };
 
-  const handleLogout = async () => {
-    await signOutGoogle();
-    setUser(null);
+  const handleLogout = () => {
+    logout();
     navigate('/login', { replace: true });
   };
 
@@ -279,11 +277,6 @@ function Home() {
     setShowDetailEntry(false);
     setEditRecord(null);
   };
-
-  // 에러 처리
-  if (error && error.message === 'Authentication required') {
-    setSetupRequired(true);
-  }
 
   if (setupRequired) {
     return (
