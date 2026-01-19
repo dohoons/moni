@@ -99,11 +99,10 @@ export async function handleGoogleSignIn(response: TokenResponse) {
 /**
  * 자동 토큰 갱신 초기화
  *
- * 앱이 foreground로 진입할 때 토큰 유효시간을 확인하고,
- * 30분 미만 남은 경우 silent 갱신을 수행합니다.
+ * - 앱 실행 시점에 토큰 상태 확인 및 갱신
+ * - foreground 진입 시 30분 미만 남은 경우 silent 갱신
  */
 export function initAutoRefresh() {
-  // tokenClient 초기화 (이미 로그인된 경우)
   if (window.google?.accounts?.oauth2 && !tokenClient) {
     tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
@@ -112,11 +111,9 @@ export function initAutoRefresh() {
         isRefreshing = false;
 
         if (response.access_token) {
-          // 토큰 갱신 성공
           await handleGoogleSignIn(response);
           console.log('[AutoRefresh] Token refreshed successfully');
         } else {
-          // 갱신 실패 → 로그아웃
           console.error('[AutoRefresh] Token refresh failed:', response);
           signOutGoogle();
           window.location.href = '/login';
@@ -131,12 +128,22 @@ export function initAutoRefresh() {
     });
   }
 
-  // iOS 호환성: 여러 이벤트 조합
+  // foreground 감지 이벤트 등록
   const events = ['visibilitychange', 'pageshow', 'focus'];
-
   events.forEach((event) => {
     window.addEventListener(event, handleForeground);
   });
+
+  // 실행 시점 토큰 상태 확인
+  if (accessToken && tokenExpiry) {
+    const remainingTime = tokenExpiry - Date.now();
+    if (remainingTime < REFRESH_THRESHOLD) {
+      console.log(`[AutoRefresh] App start: Token expires in ${Math.floor(remainingTime / 60000)}min, refreshing...`);
+      refreshAccessToken();
+    } else {
+      console.log(`[AutoRefresh] App start: Token valid for ${Math.floor(remainingTime / 60000)}min`);
+    }
+  }
 }
 
 /**
