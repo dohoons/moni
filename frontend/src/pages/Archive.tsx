@@ -107,7 +107,7 @@ function Archive() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur safe-area-top">
+      <header className="fixed left-0 right-0 top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur safe-area-top">
         <div className="mx-auto max-w-2xl px-4 py-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">월별 보기</h1>
@@ -122,7 +122,7 @@ function Archive() {
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
+      <main className="mx-auto max-w-2xl px-4 pt-24 pb-6 sm:px-6">
         {/* Month Selector */}
         <div className="mb-6 rounded-xl bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
