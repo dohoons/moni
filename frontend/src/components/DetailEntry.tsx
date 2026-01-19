@@ -127,13 +127,29 @@ function DetailEntry({ isOpen, editRecord, onClose, onSubmit, onUpdate, onDelete
           {/* 날짜 (편집 모드에서만 표시) */}
           {isEditMode && (
             <div>
-              <label htmlFor="date" className="mb-2 block text-sm font-medium text-gray-700">날짜</label>
+              <label htmlFor="date" className="mb-2 block text-sm font-medium text-gray-700">날짜 (YYYYMMDD)</label>
               <input
                 id="date"
-                type="date"
-                value={date}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setDate(e.target.value)}
-                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                type="text"
+                inputMode="numeric"
+                value={date.replace(/-/g, '')}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  let val = e.target.value.replace(/\D/g, '');
+                  if (val.length > 8) val = val.slice(0, 8);
+
+                  // YYYY-MM-DD 형식으로 변환하여 저장
+                  let formatted = val;
+                  if (val.length >= 5) {
+                    formatted = val.slice(0, 4) + '-' + val.slice(4, 6) + (val.length > 6 ? '-' + val.slice(6) : '');
+                  } else if (val.length >= 4) {
+                    formatted = val.slice(0, 4) + '-' + val.slice(4);
+                  }
+
+                  setDate(formatted);
+                }}
+                placeholder="20250119"
+                maxLength={8}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
           )}
