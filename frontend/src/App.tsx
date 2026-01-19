@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { initAutoRefresh } from './services/google-oauth';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Stats from './pages/Stats';
@@ -18,6 +20,13 @@ const queryClient = new QueryClient({
 
 function AppRoutes() {
   const { user, loading } = useAuth();
+
+  // 로그인된 사용자만 자동 갱신 초기화
+  useEffect(() => {
+    if (user) {
+      initAutoRefresh();
+    }
+  }, [user]);
 
   if (loading) {
     return (

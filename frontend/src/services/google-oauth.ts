@@ -8,6 +8,9 @@
 const TOKEN_STORAGE_KEY = 'google_access_token';
 const TOKEN_EXPIRY_KEY = 'google_token_expiry';
 
+// 자동 갱신 설정
+const REFRESH_THRESHOLD = 30 * 60 * 1000; // 30분 (밀리초)
+
 interface TokenResponse {
   access_token: string;
   expires_in: number;
@@ -19,6 +22,10 @@ let accessToken: string | null = localStorage.getItem(TOKEN_STORAGE_KEY);
 let tokenExpiry: number | null = TOKEN_EXPIRY_KEY in localStorage
   ? parseInt(localStorage.getItem(TOKEN_EXPIRY_KEY) || '0', 10)
   : null;
+
+// Token Client 전역 변수 (자동 갱신용)
+let tokenClient: any = null;
+let isRefreshing = false;
 
 /**
  * Google 로그인 핸들러
@@ -87,6 +94,104 @@ export async function handleGoogleSignIn(response: TokenResponse) {
 
   // 실패 시 null 반환
   return null;
+}
+
+/**
+ * 자동 토큰 갱신 초기화
+ *
+ * 앱이 foreground로 진입할 때 토큰 유효시간을 확인하고,
+ * 30분 미만 남은 경우 silent 갱신을 수행합니다.
+ */
+export function initAutoRefresh() {
+  // tokenClient 초기화 (이미 로그인된 경우)
+  if (window.google?.accounts?.oauth2 && !tokenClient) {
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+      scope: 'email profile',
+      callback: async (response: any) => {
+        isRefreshing = false;
+
+        if (response.access_token) {
+          // 토큰 갱신 성공
+          await handleGoogleSignIn(response);
+          console.log('[AutoRefresh] Token refreshed successfully');
+        } else {
+          // 갱신 실패 → 로그아웃
+          console.error('[AutoRefresh] Token refresh failed:', response);
+          signOutGoogle();
+          window.location.href = '/login';
+        }
+      },
+      error_callback: (error: any) => {
+        isRefreshing = false;
+        console.error('[AutoRefresh] Token refresh error:', error);
+        signOutGoogle();
+        window.location.href = '/login';
+      },
+    });
+  }
+
+  // iOS 호환성: 여러 이벤트 조합
+  const events = ['visibilitychange', 'pageshow', 'focus'];
+
+  events.forEach((event) => {
+    window.addEventListener(event, handleForeground);
+  });
+}
+
+/**
+ * Foreground 진입 핸들러
+ *
+ * visibilitychange, pageshow, focus 이벤트에서 호출됩니다.
+ */
+function handleForeground(e: Event) {
+  // pageshow 이벤트: 캐시에서 복구된 경우만 처리
+  if (e.type === 'pageshow') {
+    const pageEvent = e as PageTransitionEvent;
+    if (!pageEvent.persisted) {
+      return; // 캐시가 아니면 무시
+    }
+  }
+
+  // foreground 확인
+  if (document.hidden) {
+    return; // 여전히 hidden이면 무시
+  }
+
+  // 이미 갱신 중이면 무시
+  if (isRefreshing) {
+    return;
+  }
+
+  // 토큰이 없으면 무시
+  if (!accessToken || !tokenExpiry) {
+    return;
+  }
+
+  // 토큰 유효시간 확인
+  const remainingTime = tokenExpiry - Date.now();
+
+  if (remainingTime < REFRESH_THRESHOLD) {
+    console.log(`[AutoRefresh] Token expires in ${Math.floor(remainingTime / 60000)}min, refreshing...`);
+    refreshAccessToken();
+  }
+}
+
+/**
+ * Access Token 갱신
+ *
+ * prompt: ''로 silent 갱신을 시도합니다.
+ */
+function refreshAccessToken() {
+  if (!tokenClient) {
+    console.warn('[AutoRefresh] TokenClient not initialized');
+    return;
+  }
+
+  isRefreshing = true;
+
+  // prompt: ''로 silent 갱신 (사용자 동의가 이미 있는 경우)
+  tokenClient.requestAccessToken({ prompt: '' });
 }
 
 /**
