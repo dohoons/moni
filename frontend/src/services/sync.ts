@@ -91,6 +91,31 @@ export function clearPendingRecords(): void {
 }
 
 /**
+ * 특정 인덱스의 대기열 레코드 제거 (취소용)
+ */
+export function removePendingRecordByIndex(index: number): void {
+  const records = getPendingRecords();
+  if (index >= 0 && index < records.length) {
+    records.splice(index, 1);
+    savePendingRecords(records);
+  }
+}
+
+/**
+ * 특정 인덱스의 대기열 레코드 가져오기
+ */
+export function getPendingRecordByIndex(index: number): PendingRecord | null {
+  const records = getPendingRecords();
+  if (index >= 0 && index < records.length) {
+    return records[index];
+  }
+  return null;
+}
+
+// 타입 내보내기
+export type { PendingRecord };
+
+/**
  * 마지막 동기화 시간 가져오기
  */
 export function getLastSyncTime(): number | null {

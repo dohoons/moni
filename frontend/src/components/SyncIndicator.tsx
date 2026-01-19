@@ -2,6 +2,7 @@ import { useSync } from '../hooks/useSync';
 
 interface SyncIndicatorProps {
   onRecordsUpdated?: () => void;
+  onQueueOpen?: () => void;
 }
 
 /**
@@ -11,7 +12,7 @@ interface SyncIndicatorProps {
  * - 미동기화 레코드 수 표시
  * - 수동 동기화 버튼
  */
-function SyncIndicator({ onRecordsUpdated }: SyncIndicatorProps) {
+function SyncIndicator({ onRecordsUpdated, onQueueOpen }: SyncIndicatorProps) {
   const { isOnline, pendingCount, isSyncing, syncNow } = useSync();
 
   const handleSync = async () => {
@@ -21,7 +22,16 @@ function SyncIndicator({ onRecordsUpdated }: SyncIndicatorProps) {
 
   return (
     <div
-      className={`mb-4 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 sm:px-5 ${
+      onClick={() => onQueueOpen?.()}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onQueueOpen?.();
+        }
+      }}
+      className={`mb-4 flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 sm:px-5 transition-all hover:shadow-md active:scale-[0.99] ${
         isOnline
           ? 'border-green-200 bg-green-50'
           : 'border-red-200 bg-red-50'
@@ -56,7 +66,10 @@ function SyncIndicator({ onRecordsUpdated }: SyncIndicatorProps) {
 
       {pendingCount > 0 && (
         <button
-          onClick={handleSync}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSync();
+          }}
           disabled={isSyncing || !isOnline}
           className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-all ${
             isSyncing || !isOnline

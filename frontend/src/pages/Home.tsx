@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import SmartEntry from '../components/SmartEntry';
 import DetailEntry, { type Record } from '../components/DetailEntry';
 import SyncIndicator from '../components/SyncIndicator';
+import SyncQueueModal from '../components/SyncQueueModal';
 import type { ParsedInput } from '../lib/parser';
 import { WEEKDAYS } from '../constants';
 
@@ -31,6 +32,7 @@ function Home() {
   const [setupRequired, setSetupRequired] = useState(false);
   const [showDetailEntry, setShowDetailEntry] = useState(false);
   const [editRecord, setEditRecord] = useState<Record | null>(null);
+  const [showSyncQueueModal, setShowSyncQueueModal] = useState(false);
 
   // Intersection Observer용 ref
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -376,7 +378,7 @@ function Home() {
       {/* Main Content */}
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
         {pendingCount > 0 && (
-          <SyncIndicator onRecordsUpdated={loadRecords} />
+          <SyncIndicator onRecordsUpdated={loadRecords} onQueueOpen={() => setShowSyncQueueModal(true)} />
         )}
 
         {/* Quick Entry Section */}
@@ -535,6 +537,13 @@ function Home() {
         onSubmit={handleEntrySubmit}
         onUpdate={handleUpdate}
         onDelete={handleDelete}
+      />
+
+      {/* Sync Queue Modal */}
+      <SyncQueueModal
+        isOpen={showSyncQueueModal}
+        onClose={() => setShowSyncQueueModal(false)}
+        onRecordsUpdated={loadRecords}
       />
     </div>
   );

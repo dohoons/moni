@@ -154,7 +154,22 @@ export function useSync(): UseSyncResult {
         await api.deleteRecord(id);
         return { queued: false };
       } else {
-        addPendingRecord({ id, action: 'delete' });
+        // 캐시에서 레코드 정보 가져와서 함께 저장 (삭제 대상 확인용)
+        const records = queryClient.getQueryData(['records']) as any[];
+        const record = records?.find((r: any) => r.id === id);
+        if (record) {
+          addPendingRecord({
+            id,
+            action: 'delete',
+            amount: record.amount,
+            date: record.date,
+            memo: record.memo,
+            method: record.method,
+            category: record.category,
+          });
+        } else {
+          addPendingRecord({ id, action: 'delete' });
+        }
         return { queued: true };
       }
     },
