@@ -30,19 +30,13 @@ function createRecord(record) {
   const sheet = getDataSheet();
   const userEmail = Session.getActiveUser().getEmail();
 
-  // 지출이고 분류가 없으면 기본값 "식비"
-  let category = record.category || '';
-  if (!category && record.amount < 0) {
-    category = '식비';
-  }
-
   const row = [
     record.id || generateUUID(),
     record.date,
     record.amount,
     record.memo || '',
     record.method || '',
-    category,
+    record.category || '',
     record.created || new Date().toISOString(),
     userEmail  // 사용자 이메일 저장
   ];

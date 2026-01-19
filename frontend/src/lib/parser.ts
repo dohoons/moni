@@ -59,5 +59,10 @@ export function parseSmartEntry(input: string): ParsedInput {
     }
   }
 
+  // 메모가 없는 지출은 기본값 "식비"
+  if (!result.memo && result.amount < 0 && !result.category) {
+    result.category = '식비';
+  }
+
   return result;
 }

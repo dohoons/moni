@@ -60,8 +60,12 @@ async function request<T = any>(
 
 export const api = {
   createRecord: async (data: ParsedInput & { id?: string; date?: string }) => {
+    // 지출이고 카테고리가 없으면 기본값 "식비" 설정
+    const category = data.category || (data.amount < 0 ? '식비' : '');
+
     return request('/api/record', {
       ...data,
+      category,
       date: data.date || new Date().toISOString().split('T')[0],
     });
   },
