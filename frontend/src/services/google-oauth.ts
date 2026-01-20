@@ -115,15 +115,13 @@ export function initAutoRefresh() {
           console.log('[AutoRefresh] Token refreshed successfully');
         } else {
           console.error('[AutoRefresh] Token refresh failed:', response);
-          signOutGoogle();
-          window.location.href = '/login';
+          window.dispatchEvent(new CustomEvent('moni-auth-expired'));
         }
       },
       error_callback: (error: any) => {
         isRefreshing = false;
         console.error('[AutoRefresh] Token refresh error:', error);
-        signOutGoogle();
-        window.location.href = '/login';
+        window.dispatchEvent(new CustomEvent('moni-auth-expired'));
       },
     });
   }

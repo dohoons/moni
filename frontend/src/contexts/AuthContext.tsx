@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, signOutGoogle, clearOfflineData } from '../services/google-oauth';
 
 interface User {
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -58,14 +60,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             error.message.startsWith('Token verification failed')
           ) {
             logout();
-            window.location.href = '/login';
+            navigate('/login');
           }
         }
       }
     });
 
     return () => unsubscribe();
-  }, [queryClient, logout]);
+  }, [queryClient, logout, navigate]);
+
+  // 토큰 갱신 실패 이벤트 핸들러 (google-oauth.ts에서 발생)
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      logout();
+      navigate('/login');
+    };
+
+    window.addEventListener('moni-auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('moni-auth-expired', handleAuthExpired);
+  }, [logout, navigate]);
 
   return (
     <AuthContext.Provider value={{ user, loading, setUser, logout }}>
