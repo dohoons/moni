@@ -12,7 +12,6 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
   setUser: (user: User | null) => void;
   logout: () => void;
 }
@@ -20,16 +19,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => getCurrentUser());
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const currentUser = getCurrentUser();
-    setUser(currentUser);
-    setLoading(false);
-  }, []);
 
   // 통합 로그아웃 함수
   // - React Query 캐시 초기화
@@ -81,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [logout, navigate]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, setUser, logout }}>
+    <AuthContext.Provider value={{ user, setUser, logout }}>
       {children}
     </AuthContext.Provider>
   );
