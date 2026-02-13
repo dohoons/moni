@@ -167,20 +167,22 @@ function Stats() {
                             />
                             <Legend />
                             <Line
-                              type="monotone"
+                              type="natural"
                               dataKey="당월"
                               stroke="#1a73e8"
                               strokeWidth={2}
-                              dot={{ r: 3 }}
+                              dot={false}
+                              activeDot={false}
                               connectNulls={false}
                             />
                             <Line
-                              type="monotone"
+                              type="natural"
                               dataKey="전월"
                               stroke="#9ca3af"
                               strokeWidth={2}
                               strokeDasharray="5 5"
-                              dot={{ r: 3 }}
+                              dot={false}
+                              activeDot={false}
                               connectNulls={false}
                             />
                           </LineChart>
