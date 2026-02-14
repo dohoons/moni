@@ -329,7 +329,7 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
           </div>
 
           {/* Footer */}
-          <div className="flex flex-shrink-0 gap-3 border-t border-gray-200 px-6 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 sm:py-4">
+          <div className="flex flex-shrink-0 gap-3 border-t border-gray-200 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:py-4">
             <div className="flex flex-1 gap-3">
               <button
                 type="button"

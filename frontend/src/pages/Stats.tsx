@@ -447,7 +447,7 @@ function Stats() {
                         </div>
                       </div>
                     </div>
-                    <div className="border-t border-gray-200 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 sm:py-4">
+                    <div className="border-t border-gray-200 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:py-4">
                       <div className="flex gap-3">
                       <button
                         type="button"

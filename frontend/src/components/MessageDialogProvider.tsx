@@ -162,7 +162,7 @@ function MessageDialogProvider({ children }: MessageDialogProviderProps) {
                   </p>
                 </div>
               )}
-              <div className="border-t border-gray-100 px-6 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 sm:px-5 sm:py-4">
+              <div className="border-t border-gray-100 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-5 sm:py-4">
                 {topDialog.type === 'confirm' && (
                   <div className="flex gap-3">
                     <button

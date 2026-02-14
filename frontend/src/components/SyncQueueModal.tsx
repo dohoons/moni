@@ -363,7 +363,7 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
 
         {/* Footer */}
         {records.length > 0 && (
-          <div className="border-t border-gray-200 px-6 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 sm:py-4">
+          <div className="border-t border-gray-200 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:py-4">
             <button
               onClick={handleClearAll}
               className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-100"
