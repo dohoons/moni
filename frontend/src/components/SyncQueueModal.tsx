@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { getPendingRecords, clearPendingRecords, removePendingRecordByIndex, getPendingRecordByIndex, removePendingRecord, updateLastSyncTime, isOnline } from '../services/sync';
+import { usePullDownToClose } from '../hooks/usePullDownToClose';
 
 interface SyncQueueModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ interface SyncQueueModalProps {
 function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalProps) {
   const [records, setRecords] = useState(getPendingRecords());
   const [syncingIndex, setSyncingIndex] = useState<number | null>(null);
+  const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   // 모달이 열릴 때마다 레코드 새로고침
   useEffect(() => {
@@ -246,8 +248,20 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+        ref={panelRef}
+        style={panelStyle}
+        {...panelTouch}
+      >
+        <div className="flex justify-center px-6 pt-3 pb-1 sm:hidden">
+          <div className="h-1.5 w-10 rounded-full bg-gray-300" />
+        </div>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
 import { type ParsedInput } from '../lib/parser';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../constants';
+import { usePullDownToClose } from '../hooks/usePullDownToClose';
 
 type PaymentMethod = '신용카드' | '체크카드' | '현금' | '계좌이체';
 
@@ -31,6 +32,7 @@ function DetailEntry({ isOpen, editRecord, onClose, onSubmit, onUpdate, onDelete
   const [method, setMethod] = useState<PaymentMethod | ''>('');
   const [category, setCategory] = useState('');
   const [date, setDate] = useState('');
+  const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   const isEditMode = editRecord !== null;
 
@@ -105,8 +107,20 @@ function DetailEntry({ isOpen, editRecord, onClose, onSubmit, onUpdate, onDelete
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex w-full max-w-md max-h-[calc(100vh-2rem)] flex-col rounded-2xl bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-md max-h-[calc(100vh-2rem)] flex-col rounded-2xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+        ref={panelRef}
+        style={panelStyle}
+        {...panelTouch}
+      >
+        <div className="flex justify-center px-6 pt-3 pb-1 sm:hidden">
+          <div className="h-1.5 w-10 rounded-full bg-gray-300" />
+        </div>
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
           <h3 className="text-lg font-semibold text-gray-900">
