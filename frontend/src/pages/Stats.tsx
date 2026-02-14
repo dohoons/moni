@@ -565,7 +565,10 @@ function Stats() {
                     ) : currentCategoryData.length > 0 ? (
                       <div className="h-44">
                         <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                          <BarChart data={currentCategoryData}>
+                          <BarChart
+                            data={currentCategoryData}
+                            margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+                          >
                             <XAxis
                               dataKey="name"
                               angle={-45}
@@ -574,7 +577,6 @@ function Stats() {
                               fontSize={11}
                               tick={{ fill: '#6b7280' }}
                             />
-                            <YAxis tick={{ fill: '#6b7280' }} />
                             <Tooltip formatter={(value: any) => `${value.toLocaleString()}원`} />
                             <Bar
                               dataKey="value"
