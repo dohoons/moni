@@ -314,8 +314,8 @@ function Stats() {
       {/* Main Content */}
       <main className="mx-auto max-w-2xl space-y-6 px-4 safe-area-header pb-6 sm:px-6">
         {/* 탭 메뉴 */}
-        <div className="overflow-hidden rounded-2xl">
-          <div className="flex border-b border-gray-200">
+        <div className="overflow-hidden rounded-xl">
+          <div className="flex rounded-xl border border-gray-200 bg-white shadow-sm">
             <button
               onClick={() => setActiveTab('monthly')}
               className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
@@ -341,33 +341,43 @@ function Stats() {
           {/* 월별 탭 내용 */}
           {activeTab === 'monthly' && (
             <div className="pb-4 pt-4">
-              <div className="mb-6 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <div className="mb-6 rounded-xl bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => moveMonth(-1)}
                   disabled={isPrevDisabled}
                   aria-label="이전달"
-                  className="h-9 w-9 rounded-full border border-gray-300 bg-white text-lg font-bold text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  ←
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
                 </button>
                 <button
                   type="button"
                   onClick={openMonthPicker}
-                  className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="rounded-lg px-4 py-1.5 text-center transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
-                  {selectedYear}년 {selectedMonth}월
-                  <span className="text-xs" aria-hidden="true">▼</span>
+                  <div className="flex items-center justify-center gap-2">
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {selectedYear}년 {selectedMonth}월
+                    </h2>
+                    <span className="mt-1 text-xs text-gray-500" aria-hidden="true">▼</span>
+                  </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => moveMonth(1)}
                   disabled={isNextDisabled}
                   aria-label="다음달"
-                  className="h-9 w-9 rounded-full border border-gray-300 bg-white text-lg font-bold text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  →
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                 </button>
+              </div>
               </div>
 
               {isMonthPickerOpen && (
@@ -458,7 +468,7 @@ function Stats() {
               {/* 월별 통계 내용 */}
               <div className="space-y-6">
                 {/* 전월 대비 증감 */}
-                <section className="overflow-hidden rounded-xl bg-gray-50 py-5">
+                <section className="overflow-hidden rounded-xl bg-white p-5 shadow-sm">
                   <div className="mb-4">
                     <h3 className="text-[1.2rem] font-extrabold tracking-tight text-gray-900">
                       {headlineLabel} {formatCompactKrw(expenseDisplayValue)} 썼어요
@@ -577,13 +587,13 @@ function Stats() {
                         </>
                       ) : (
                         <>
-                          <div className="rounded-lg bg-white p-3 text-center shadow-sm">
+                          <div className="rounded-xl border border-gray-100 bg-white p-3 text-center shadow-sm">
                             <div className={`mb-1 text-xl font-bold ${spendDiffRate > 0 ? 'text-rose-500' : spendDiffRate < 0 ? 'text-blue-600' : 'text-gray-700'}`}>
                               {spendDiffRate > 0 ? '+' : ''}{spendDiffRate}%
                             </div>
                             <div className="text-xs text-gray-500">지출 증감</div>
                           </div>
-                          <div className="rounded-lg bg-white p-3 text-center shadow-sm">
+                          <div className="rounded-xl border border-gray-100 bg-white p-3 text-center shadow-sm">
                             <div className="mb-1 text-xl font-bold text-gray-900">
                               {expenseDisplayValue.toLocaleString()}원
                             </div>
@@ -596,7 +606,7 @@ function Stats() {
                 </section>
 
                 {/* 카테고리별 지출 */}
-                <section className="overflow-hidden rounded-xl bg-gray-50">
+                <section className="overflow-hidden rounded-xl bg-white shadow-sm">
                   <div className="border-b border-gray-200 px-5 py-3">
                     <h3 className="text-base font-semibold text-gray-900">카테고리별 지출</h3>
                   </div>
@@ -643,19 +653,36 @@ function Stats() {
           {activeTab === 'yearly' && (
             <div className="pb-4 pt-4">
               {/* 연도 선택 UI */}
-              <div className="mb-6">
-                <label className="mb-2 block text-sm font-medium text-gray-700">연도</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                  {years.map((year) => (
-                    <option key={year} value={year}>
-                      {year}년
-                    </option>
-                  ))}
-                </select>
+              <div className="mb-6 rounded-xl bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedYear((prev) => Math.max(minYear, prev - 1))}
+                    disabled={selectedYear <= minYear}
+                    aria-label="이전 연도"
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div className="rounded-lg px-4 py-1.5 text-center">
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {selectedYear}년
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedYear((prev) => Math.min(maxYear, prev + 1))}
+                    disabled={selectedYear >= maxYear}
+                    aria-label="다음 연도"
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* 에러 표시 */}
@@ -668,7 +695,7 @@ function Stats() {
               {/* 연도별 통계 내용 */}
               <div className="space-y-6">
                 {/* 연간 저축률 */}
-                <section className="overflow-hidden rounded-xl bg-gray-50">
+                <section className="overflow-hidden rounded-xl bg-white shadow-sm">
                   <div className="border-b border-gray-200 px-5 py-3">
                     <h3 className="text-base font-semibold text-gray-900">연간 저축률</h3>
                   </div>
@@ -718,13 +745,13 @@ function Stats() {
                 </section>
 
                 {/* 연간 요약 */}
-                <section className="overflow-hidden rounded-xl bg-gray-50">
+                <section className="overflow-hidden rounded-xl bg-white shadow-sm">
                   <div className="border-b border-gray-200 px-5 py-3">
                     <h3 className="text-base font-semibold text-gray-900">연간 요약</h3>
                   </div>
                   <div className="p-5">
                     {isPending ? (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="animate-pulse rounded-lg bg-white p-4 text-center shadow-sm">
                           <div className="mb-2 h-10 w-24 bg-gray-200 mx-auto" />
                           <div className="h-4 w-12 bg-gray-200 mx-auto" />
@@ -735,15 +762,15 @@ function Stats() {
                         </div>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="rounded-lg bg-white p-4 text-center shadow-sm">
-                          <div className="mb-2 text-3xl font-bold text-green-600">
+                          <div className="mb-2 min-w-0 break-keep text-[clamp(2rem,8vw,3rem)] font-bold leading-tight text-green-600">
                             {yearSavings.toLocaleString()}원
                           </div>
                           <div className="text-sm text-gray-500">연간 저축</div>
                         </div>
                         <div className="rounded-lg bg-white p-4 text-center shadow-sm">
-                          <div className="mb-2 text-3xl font-bold text-red-600">
+                          <div className="mb-2 min-w-0 break-keep text-[clamp(2rem,8vw,3rem)] font-bold leading-tight text-red-600">
                             {yearExpense.toLocaleString()}원
                           </div>
                           <div className="text-sm text-gray-500">연간 지출</div>
