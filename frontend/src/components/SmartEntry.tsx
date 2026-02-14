@@ -66,7 +66,7 @@ function SmartEntry({ onSubmit, onParsedChange }: SmartEntryProps) {
           value={input}
           onChange={handleChange}
           onKeyDown={handleKeyPress}
-          placeholder="5000 커피 신"
+          placeholder="5000 커피 신 [식]"
           className="w-full rounded-xl border-2 border-gray-200 px-4 py-4 pr-12 text-base outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:py-3"
         />
         {input && (
@@ -144,7 +144,7 @@ function SmartEntry({ onSubmit, onParsedChange }: SmartEntryProps) {
 
       {!parsed && input && (
         <div className="mt-2 text-xs text-gray-500">
-          예: 5000 커피 신 (지출 5000원, 메모: 커피, 결제수단: 신용카드)
+          예: 5000 커피 신 [식] (지출 5000원, 메모: 커피, 결제수단: 신용카드, 카테고리: 식비)
         </div>
       )}
     </div>
