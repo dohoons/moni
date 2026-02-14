@@ -101,16 +101,17 @@ function SmartEntry({ onSubmit, onParsedChange, resetSignal = 0 }: SmartEntryPro
 
   return (
     <div>
-      <div className="mb-3 flex h-14 overflow-hidden rounded-xl border-2 border-gray-200 transition-all focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
-        <div className="flex w-14 shrink-0 flex-col border-r border-gray-200">
+      <div className="mb-3 flex h-14 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_8px_20px_-18px_rgba(15,23,42,0.7)] transition-all focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100">
+        <div className="m-1 flex w-16 shrink-0 flex-col rounded-lg bg-slate-50 p-0.5">
           <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => setIncomeMode(false)}
-            className={`flex-1 px-1 text-xs font-bold leading-none transition-all ${
+            aria-pressed={!isIncome}
+            className={`flex-1 rounded-md px-1 text-xs font-semibold leading-none transition-all ${
               !isIncome
-                ? 'bg-red-600 text-white'
-                : 'bg-white text-gray-600 active:bg-gray-50'
+                ? 'bg-slate-700 text-white shadow-sm'
+                : 'text-slate-500 hover:bg-white hover:text-slate-700 active:bg-slate-100'
             }`}
           >
             지출
@@ -119,10 +120,11 @@ function SmartEntry({ onSubmit, onParsedChange, resetSignal = 0 }: SmartEntryPro
             type="button"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => setIncomeMode(true)}
-            className={`flex-1 border-t border-gray-200 px-1 text-xs font-bold leading-none transition-all ${
+            aria-pressed={isIncome}
+            className={`flex-1 rounded-md px-1 text-xs font-semibold leading-none transition-all ${
               isIncome
-                ? 'bg-green-600 text-white'
-                : 'bg-white text-gray-600 active:bg-gray-50'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-500 hover:bg-white hover:text-slate-700 active:bg-slate-100'
             }`}
           >
             수입
