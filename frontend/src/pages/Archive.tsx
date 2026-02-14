@@ -64,6 +64,14 @@ function Archive() {
   const [showDetailEntry, setShowDetailEntry] = useState(false);
   const [editRecord, setEditRecord] = useState<TransactionRecord | null>(null);
   const [pullDistance, setPullDistance] = useState(0);
+  const monthSummaryRef = useRef<HTMLDivElement>(null);
+  const [stickyOffsets, setStickyOffsets] = useState(() => {
+    const titleBarBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
+    return {
+      titleBarBottom,
+      dayHeadingTop: titleBarBottom + 112,
+    };
+  });
   const pullStartYRef = useRef<number | null>(null);
   const isPullingRef = useRef(false);
 
@@ -119,6 +127,36 @@ function Archive() {
     nextParams.set('month', nextMonth);
     setSearchParams(nextParams, { replace: true });
   }, [yearMonth.year, yearMonth.month, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const updateStickyOffsets = () => {
+      const titleBarBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
+      const monthSummaryHeight = monthSummaryRef.current?.offsetHeight ?? 112;
+      const gap = 0;
+
+      setStickyOffsets((prev) => {
+        const next = {
+          titleBarBottom,
+          dayHeadingTop: titleBarBottom + monthSummaryHeight + gap,
+        };
+        if (
+          Math.abs(prev.titleBarBottom - next.titleBarBottom) <= 0.5 &&
+          Math.abs(prev.dayHeadingTop - next.dayHeadingTop) <= 0.5
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    };
+
+    updateStickyOffsets();
+    window.addEventListener('resize', updateStickyOffsets);
+    window.addEventListener('orientationchange', updateStickyOffsets);
+    return () => {
+      window.removeEventListener('resize', updateStickyOffsets);
+      window.removeEventListener('orientationchange', updateStickyOffsets);
+    };
+  }, [yearMonth.year, yearMonth.month, records.length]);
 
   const handleManualRefresh = useCallback(async () => {
     if (isRefreshing || loading) return;
@@ -349,7 +387,11 @@ function Archive() {
           </div>
         )}
 
-        <div className="sticky top-[calc(env(safe-area-inset-top)+76px)] z-0 mb-6 rounded-xl bg-white p-4 shadow-sm">
+        <div
+          ref={monthSummaryRef}
+          className="sticky z-[2] mb-6 rounded-xl bg-white p-4 shadow-sm"
+          style={{ top: `${stickyOffsets.titleBarBottom}px` }}
+        >
           <div className="flex items-center justify-between">
             <button
               onClick={handlePrevMonth}
@@ -441,7 +483,12 @@ function Archive() {
           <div className="space-y-6">
             {groupedRecords.map(([date, dateRecords]) => (
               <div key={date}>
-                <h4 className="mb-3 px-1 text-sm font-semibold text-gray-500">{formatDate(date)}</h4>
+                <div
+                  className="sticky z-[1] bg-gray-50 pb-3 pt-3"
+                  style={{ top: `${stickyOffsets.dayHeadingTop}px` }}
+                >
+                  <h4 className="px-1 text-sm font-semibold text-gray-500">{formatDate(date)}</h4>
+                </div>
                 <div className="space-y-2">
                   {dateRecords.map((record) => {
                     const isSaving = record._isSaving;

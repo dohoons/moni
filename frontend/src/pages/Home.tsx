@@ -38,6 +38,9 @@ function Home() {
   const [showSyncQueueModal, setShowSyncQueueModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
+  const [titleBarBottom, setTitleBarBottom] = useState(() => {
+    return document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
+  });
   const scrollAnchorRef = useRef<{ id: string; top: number } | null>(null);
   const pullStartYRef = useRef<number | null>(null);
   const isPullingRef = useRef(false);
@@ -182,6 +185,21 @@ function Home() {
       }
     };
   }, [hasMore, loadingMore, loadMore]);
+
+  useEffect(() => {
+    const updateTitleBarBottom = () => {
+      const nextBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
+      setTitleBarBottom((prev) => (Math.abs(prev - nextBottom) > 0.5 ? nextBottom : prev));
+    };
+
+    updateTitleBarBottom();
+    window.addEventListener('resize', updateTitleBarBottom);
+    window.addEventListener('orientationchange', updateTitleBarBottom);
+    return () => {
+      window.removeEventListener('resize', updateTitleBarBottom);
+      window.removeEventListener('orientationchange', updateTitleBarBottom);
+    };
+  }, []);
 
   const handleSetup = async () => {
     try {
@@ -607,7 +625,10 @@ function Home() {
               {groupedRecords.map(([date, dateRecords]) => (
                 <div key={date}>
                   {/* 날짜 소제목 */}
-                  <h4 className="mb-3 px-1 text-sm font-semibold text-gray-500">
+                  <h4
+                    className="sticky z-[1] mb-3 -mx-1 bg-gray-50 px-1 py-1 text-sm font-semibold text-gray-500"
+                    style={{ top: `${titleBarBottom}px` }}
+                  >
                     {formatDate(date)}
                   </h4>
                   {/* 해당 날짜의 레코드들 */}
