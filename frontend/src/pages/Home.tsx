@@ -33,6 +33,7 @@ function Home() {
   const [showDetailEntry, setShowDetailEntry] = useState(false);
   const [editRecord, setEditRecord] = useState<Record | null>(null);
   const [quickParsed, setQuickParsed] = useState<ParsedInput | null>(null);
+  const [quickEntryResetSignal, setQuickEntryResetSignal] = useState(0);
   const [showSyncQueueModal, setShowSyncQueueModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -251,6 +252,10 @@ function Home() {
   }, [pullDistance, handleManualRefresh]);
 
   const handleEntrySubmit = async (parsed: ParsedInput) => {
+    // 빠른기록 입력창/파싱 상태 초기화 (상세기록에서 전송한 경우 포함)
+    setQuickParsed(null);
+    setQuickEntryResetSignal((prev) => prev + 1);
+
     // 즉시 다이얼로그 닫기
     setShowDetailEntry(false);
     setEditRecord(null);
@@ -539,7 +544,11 @@ function Home() {
               상세 기록
             </button>
           </div>
-          <SmartEntry onSubmit={handleEntrySubmit} onParsedChange={setQuickParsed} />
+          <SmartEntry
+            onSubmit={handleEntrySubmit}
+            onParsedChange={setQuickParsed}
+            resetSignal={quickEntryResetSignal}
+          />
         </section>
 
         {/* Recent Records Section */}

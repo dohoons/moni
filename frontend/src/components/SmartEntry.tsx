@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
 import { parseSmartEntry } from '../lib/parser';
 import type { ParsedInput } from '../lib/parser';
@@ -6,13 +6,20 @@ import type { ParsedInput } from '../lib/parser';
 interface SmartEntryProps {
   onSubmit: (parsed: ParsedInput) => void;
   onParsedChange?: (parsed: ParsedInput | null) => void;
+  resetSignal?: number;
 }
 
-function SmartEntry({ onSubmit, onParsedChange }: SmartEntryProps) {
+function SmartEntry({ onSubmit, onParsedChange, resetSignal = 0 }: SmartEntryProps) {
   const [input, setInput] = useState('');
   const [parsed, setParsed] = useState<ParsedInput | null>(null);
   const isSubmittingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setInput('');
+    setParsed(null);
+    onParsedChange?.(null);
+  }, [resetSignal, onParsedChange]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
