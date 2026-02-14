@@ -650,7 +650,7 @@ function Home() {
                             )}
                           </div>
                         </div>
-                        <div className={`ml-4 text-right font-bold sm:text-base ${isSaving ? 'text-gray-400' : (record.amount > 0 ? 'text-green-600' : 'text-red-600')}`}>
+                        <div className={`ml-4 text-right font-bold sm:text-base ${isSaving ? 'text-gray-400' : (record.amount > 0 ? 'text-emerald-600' : 'text-slate-700')}`}>
                           {record.amount > 0 ? '+' : ''}{Math.abs(record.amount).toLocaleString()}원
                         </div>
                       </div>

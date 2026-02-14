@@ -363,7 +363,7 @@ function Archive() {
               <h2 className="text-2xl font-bold text-gray-900">
                 {yearMonth.year}년 {yearMonth.month}월
               </h2>
-              <p className={`mt-1 text-sm font-medium ${monthlyTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p className={`mt-1 text-sm font-medium ${monthlyTotal >= 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
                 {monthlyTotal >= 0 ? '+' : ''}{monthlyTotal.toLocaleString()}원
               </p>
             </div>
@@ -476,10 +476,10 @@ function Archive() {
                           </div>
                         </div>
                         <div
-                          className={`ml-4 text-right font-bold ${record.amount > 0 ? 'text-green-600' : 'text-red-600'}`}
+                          className={`ml-4 text-right font-bold ${record.amount > 0 ? 'text-emerald-600' : 'text-slate-700'}`}
                         >
                           {record.amount > 0 ? '+' : ''}
-                          {record.amount.toLocaleString()}원
+                          {Math.abs(record.amount).toLocaleString()}원
                         </div>
                       </div>
                     );
