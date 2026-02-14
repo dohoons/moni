@@ -6,6 +6,7 @@ interface CategoryStats {
 }
 
 interface MonthStats {
+  expenseTotal: number;
   total: number;
   byCategory: CategoryStats;
 }

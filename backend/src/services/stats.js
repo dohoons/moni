@@ -5,24 +5,29 @@
  */
 
 /**
- * 일별 저축 계산 (누적)
+ * 일별 지출 계산 (누적)
  */
-function getDailySavings(records, year, month) {
+function getDailyExpenses(records, year, month) {
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
   const monthRecords = records.filter(r => r.date.startsWith(monthPrefix));
 
   // 해당 월의 일수 계산
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // 일별 저축 배열 초기화
-  const dailySavings = [];
+  // 일별 지출 배열 초기화
+  const dailyExpenses = [];
 
-  // 각 일자별 저축액 계산
+  // 각 일자별 지출액 계산
   for (let day = 1; day <= daysInMonth; day++) {
     const dayStr = `${monthPrefix}-${String(day).padStart(2, '0')}`;
     const dayRecords = monthRecords.filter(r => r.date === dayStr);
-    const dayTotal = dayRecords.reduce((sum, r) => sum + r.amount, 0);
-    dailySavings.push({
+    const dayTotal = dayRecords.reduce((sum, r) => {
+      if (r.amount < 0) {
+        return sum + Math.abs(r.amount);
+      }
+      return sum;
+    }, 0);
+    dailyExpenses.push({
       day: day,
       amount: dayTotal
     });
@@ -30,7 +35,7 @@ function getDailySavings(records, year, month) {
 
   // 누적 합계 계산
   let cumulative = 0;
-  return dailySavings.map(d => {
+  return dailyExpenses.map(d => {
     cumulative += d.amount;
     return {
       day: d.day,
@@ -47,7 +52,11 @@ function getMonthStats(records, year, month) {
 
   const monthRecords = records.filter(r => r.date.startsWith(monthPrefix));
 
+  // 순저축(수입 - 지출)
   const total = monthRecords.reduce((sum, r) => sum + r.amount, 0);
+  const expenseTotal = monthRecords
+    .filter(r => r.amount < 0)
+    .reduce((sum, r) => sum + Math.abs(r.amount), 0);
 
   const byCategory = {};
 
@@ -59,6 +68,7 @@ function getMonthStats(records, year, month) {
   });
 
   return {
+    expenseTotal,
     total: total,
     byCategory: byCategory
   };
@@ -84,8 +94,8 @@ function getAllStats(year, month) {
 
   const currentMonthStats = getMonthStats(records, year, month);
   const previousMonthStats = getMonthStats(records, prevYear, prevMonth);
-  const currentMonthDaily = getDailySavings(records, year, month);
-  const previousMonthDaily = getDailySavings(records, prevYear, prevMonth);
+  const currentMonthDaily = getDailyExpenses(records, year, month);
+  const previousMonthDaily = getDailyExpenses(records, prevYear, prevMonth);
 
   // 연간 저축액 계산 (1월 ~ 선택한 달까지)
   let yearSavings = 0;
@@ -94,7 +104,7 @@ function getAllStats(year, month) {
   for (let m = 1; m <= month; m++) {
     const stats = getMonthStats(records, year, m);
     yearSavings += stats.total;
-    yearExpense += Object.values(stats.byCategory).reduce((sum, val) => sum + val, 0);
+    yearExpense += stats.expenseTotal;
   }
 
   // 작년 동기 저축액

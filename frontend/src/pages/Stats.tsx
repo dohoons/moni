@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStats, transformCategoryData, calculateMonthOverMonth } from '../hooks/useStats';
+import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 type TabType = 'monthly' | 'yearly';
@@ -21,12 +22,20 @@ function StatsCardSkeleton() {
   );
 }
 
+function toSafeNumber(value: unknown): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
+
 function Stats() {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<TabType>('monthly');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [draftYear, setDraftYear] = useState(new Date().getFullYear());
+  const [draftMonth, setDraftMonth] = useState(new Date().getMonth() + 1);
 
   const { data: stats, isPending, error } = useStats(selectedYear, selectedMonth);
 
@@ -36,20 +45,88 @@ function Stats() {
 
   // 월 목록
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  const minYear = years[years.length - 1];
+  const maxYear = years[0];
+  const isPrevDisabled = selectedYear === minYear && selectedMonth === 1;
+  const isNextDisabled = selectedYear === maxYear && selectedMonth === 12;
+
+  const moveMonth = (direction: -1 | 1) => {
+    if (direction === -1 && isPrevDisabled) return;
+    if (direction === 1 && isNextDisabled) return;
+
+    if (direction === -1) {
+      if (selectedMonth === 1) {
+        setSelectedYear(selectedYear - 1);
+        setSelectedMonth(12);
+        return;
+      }
+      setSelectedMonth(selectedMonth - 1);
+      return;
+    }
+
+    if (selectedMonth === 12) {
+      setSelectedYear(selectedYear + 1);
+      setSelectedMonth(1);
+      return;
+    }
+    setSelectedMonth(selectedMonth + 1);
+  };
+
+  const openMonthPicker = () => {
+    setDraftYear(selectedYear);
+    setDraftMonth(selectedMonth);
+    setIsMonthPickerOpen(true);
+  };
+
+  const applyMonthPicker = () => {
+    setSelectedYear(draftYear);
+    setSelectedMonth(draftMonth);
+    setIsMonthPickerOpen(false);
+  };
+  const {
+    panelRef: monthPickerRef,
+    panelStyle: monthPickerStyle,
+    panelTouch: monthPickerPanelTouch,
+  } = usePullDownToClose({
+    onClose: () => setIsMonthPickerOpen(false),
+    enabled: isMonthPickerOpen,
+  });
 
   // 선택한 기간에 따른 데이터 계산
-  const currentCategoryData = stats ? transformCategoryData(stats.currentMonth.byCategory) : [];
-  const momChange = stats ? calculateMonthOverMonth(stats.currentMonth.total, stats.previousMonth.total) : 0;
-  const yearSavingsRate = stats && stats.yearSavings + stats.yearExpense > 0
-    ? Math.round((stats.yearSavings / (stats.yearSavings + stats.yearExpense)) * 100)
+  const safeCurrentMonth = {
+    expenseTotal: toSafeNumber(stats?.currentMonth?.expenseTotal),
+    total: toSafeNumber(stats?.currentMonth?.total),
+    byCategory: stats?.currentMonth?.byCategory ?? {} as Record<string, number>,
+  };
+  const safePreviousMonth = {
+    expenseTotal: toSafeNumber(stats?.previousMonth?.expenseTotal),
+    total: toSafeNumber(stats?.previousMonth?.total),
+    byCategory: stats?.previousMonth?.byCategory ?? {} as Record<string, number>,
+  };
+  const safeCurrentMonthDaily = stats?.currentMonthDaily ?? [];
+  const safePreviousMonthDaily = stats?.previousMonthDaily ?? [];
+  const currentCategoryData = transformCategoryData(safeCurrentMonth.byCategory);
+  const currentMonthExpenseTotal = toSafeNumber(safeCurrentMonth.expenseTotal);
+  const previousMonthExpenseTotal = toSafeNumber(safePreviousMonth.expenseTotal);
+  const momChange = stats
+    ? calculateMonthOverMonth(currentMonthExpenseTotal, previousMonthExpenseTotal)
+    : 0;
+  const yearSavings = toSafeNumber(stats?.yearSavings);
+  const yearExpense = toSafeNumber(stats?.yearExpense);
+  const yearSavingsRate = yearSavings + yearExpense > 0
+    ? Math.round((yearSavings / (yearSavings + yearExpense)) * 100)
     : 0;
 
   // 일별 데이터를 차트용으로 변환 (전월과 당월을 같은 일자에 매칭)
-  const maxDays = stats ? Math.max(stats.currentMonthDaily.length, stats.previousMonthDaily.length) : 0;
+  const maxDays = Math.max(safeCurrentMonthDaily.length, safePreviousMonthDaily.length);
   const dailyComparisonData = stats ? Array.from({ length: maxDays }, (_, i) => ({
     day: i + 1,
-    당월: stats.currentMonthDaily[i]?.amount ?? null,
-    전월: stats.previousMonthDaily[i]?.amount ?? null,
+    당월: safeCurrentMonthDaily[i]?.amount != null
+      ? Math.abs(toSafeNumber(safeCurrentMonthDaily[i]?.amount))
+      : null,
+    전월: safePreviousMonthDaily[i]?.amount != null
+      ? Math.abs(toSafeNumber(safePreviousMonthDaily[i]?.amount))
+      : null,
   })) : [];
 
   return (
@@ -99,37 +176,112 @@ function Stats() {
           {/* 월별 탭 내용 */}
           {activeTab === 'monthly' && (
             <div className="p-6">
-              {/* 년/월 선택 UI */}
-              <div className="mb-6 grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">년도</label>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(Number(e.target.value))}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    {years.map((year) => (
-                      <option key={year} value={year}>
-                        {year}년
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">월</label>
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    {months.map((month) => (
-                      <option key={month} value={month}>
-                        {month}월
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="mb-6 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => moveMonth(-1)}
+                  disabled={isPrevDisabled}
+                  aria-label="이전달"
+                  className="h-9 w-9 rounded-full border border-gray-300 bg-white text-lg font-bold text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  onClick={openMonthPicker}
+                  className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                >
+                  {selectedYear}년 {selectedMonth}월
+                  <span className="text-xs" aria-hidden="true">▼</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveMonth(1)}
+                  disabled={isNextDisabled}
+                  aria-label="다음달"
+                  className="h-9 w-9 rounded-full border border-gray-300 bg-white text-lg font-bold text-gray-700 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  →
+                </button>
               </div>
+
+              {isMonthPickerOpen && (
+                <div
+                  className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 p-4 sm:items-center"
+                  onClick={() => setIsMonthPickerOpen(false)}
+                >
+                  <div
+                    className="w-full max-w-sm rounded-2xl bg-white shadow-xl"
+                    onClick={(e) => e.stopPropagation()}
+                    ref={monthPickerRef}
+                    style={monthPickerStyle}
+                    {...monthPickerPanelTouch}
+                  >
+                    <div className="flex justify-center px-5 pt-3 pb-1 sm:hidden">
+                      <div className="h-1.5 w-10 rounded-full bg-gray-300" />
+                    </div>
+                    <div className="border-b border-gray-200 px-5 py-4">
+                      <h3 className="text-base font-semibold text-gray-900">년월 선택</h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 p-5">
+                      <div>
+                        <div className="mb-2 text-xs font-semibold text-gray-500">년도</div>
+                        <div className="h-48 overflow-y-auto rounded-lg border border-gray-200 p-1">
+                          {years.map((year) => (
+                            <button
+                              key={year}
+                              type="button"
+                              onClick={() => setDraftYear(year)}
+                              className={`mb-1 w-full rounded-md px-3 py-2 text-sm ${
+                                draftYear === year
+                                  ? 'bg-blue-600 font-semibold text-white'
+                                  : 'text-gray-700 hover:bg-gray-100'
+                              }`}
+                            >
+                              {year}년
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-2 text-xs font-semibold text-gray-500">월</div>
+                        <div className="h-48 overflow-y-auto rounded-lg border border-gray-200 p-1">
+                          {months.map((month) => (
+                            <button
+                              key={month}
+                              type="button"
+                              onClick={() => setDraftMonth(month)}
+                              className={`mb-1 w-full rounded-md px-3 py-2 text-sm ${
+                                draftMonth === month
+                                  ? 'bg-blue-600 font-semibold text-white'
+                                  : 'text-gray-700 hover:bg-gray-100'
+                              }`}
+                            >
+                              {month}월
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4">
+                      <button
+                        type="button"
+                        onClick={() => setIsMonthPickerOpen(false)}
+                        className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={applyMonthPicker}
+                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                      >
+                        적용
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 에러 표시 */}
               {error && (
@@ -143,27 +295,27 @@ function Stats() {
                 {/* 전월 대비 증감 */}
                 <section className="overflow-hidden rounded-xl bg-gray-50">
                   <div className="border-b border-gray-200 px-5 py-3">
-                    <h3 className="text-base font-semibold text-gray-900">전월 대비 증감 (일별 누적)</h3>
+                    <h3 className="text-base font-semibold text-gray-900">전월 대비 지출 증감 (일별 누적)</h3>
                   </div>
                   <div className="p-5">
                     <div className="mb-5 h-48">
                       {isPending ? (
                         <ChartSkeleton />
                       ) : (
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                           <LineChart data={dailyComparisonData}>
                             <XAxis
                               dataKey="day"
-                              tick={{ fill: '#6b7280', fontSize: 11 }}
-                              axisLine={{ stroke: '#e5e7eb' }}
+                              tick={false}
+                              tickLine={false}
+                              axisLine={false}
+                              height={0}
                             />
                             <YAxis
-                              tick={{ fill: '#6b7280', fontSize: 11 }}
-                              axisLine={{ stroke: '#e5e7eb' }}
-                            />
-                            <Tooltip
-                              formatter={(value: any) => value ? `${value.toLocaleString()}원` : '-'}
-                              labelFormatter={(label) => `${label}일`}
+                              tick={false}
+                              tickLine={false}
+                              axisLine={false}
+                              width={0}
                             />
                             <Legend />
                             <Line
@@ -174,6 +326,7 @@ function Stats() {
                               dot={false}
                               activeDot={false}
                               connectNulls={false}
+                              animationDuration={250}
                             />
                             <Line
                               type="natural"
@@ -184,15 +337,15 @@ function Stats() {
                               dot={false}
                               activeDot={false}
                               connectNulls={false}
+                              animationDuration={250}
                             />
                           </LineChart>
                         </ResponsiveContainer>
                       )}
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       {isPending ? (
                         <>
-                          <StatsCardSkeleton />
                           <StatsCardSkeleton />
                           <StatsCardSkeleton />
                         </>
@@ -202,19 +355,13 @@ function Stats() {
                             <div className={`mb-1 text-xl font-bold ${momChange > 0 ? 'text-green-600' : momChange < 0 ? 'text-red-600' : 'text-gray-700'}`}>
                               {momChange > 0 ? '+' : ''}{momChange}%
                             </div>
-                            <div className="text-xs text-gray-500">저축 증감</div>
+                            <div className="text-xs text-gray-500">지출 증감</div>
                           </div>
                           <div className="rounded-lg bg-white p-3 text-center shadow-sm">
                             <div className="mb-1 text-xl font-bold text-gray-900">
-                              {stats?.currentMonth.total.toLocaleString()}원
+                              {currentMonthExpenseTotal.toLocaleString()}원
                             </div>
-                            <div className="text-xs text-gray-500">당월 합계</div>
-                          </div>
-                          <div className="rounded-lg bg-white p-3 text-center shadow-sm">
-                            <div className="mb-1 text-xl font-bold text-gray-900">
-                              {stats?.yearSavings.toLocaleString()}원
-                            </div>
-                            <div className="text-xs text-gray-500">연간 저축</div>
+                            <div className="text-xs text-gray-500">당월 지출</div>
                           </div>
                         </>
                       )}
@@ -232,7 +379,7 @@ function Stats() {
                       <ChartSkeleton height="h-44" />
                     ) : currentCategoryData.length > 0 ? (
                       <div className="h-44">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                           <BarChart data={currentCategoryData}>
                             <XAxis
                               dataKey="name"
@@ -244,7 +391,12 @@ function Stats() {
                             />
                             <YAxis tick={{ fill: '#6b7280' }} />
                             <Tooltip formatter={(value: any) => `${value.toLocaleString()}원`} />
-                            <Bar dataKey="value" fill="#1a73e8" radius={[4, 4, 0, 0]} />
+                            <Bar
+                              dataKey="value"
+                              fill="#1a73e8"
+                              radius={[4, 4, 0, 0]}
+                              animationDuration={250}
+                            />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
@@ -304,12 +456,12 @@ function Stats() {
                     ) : (
                       <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
                         <div className="h-44 w-full sm:h-48 sm:w-48">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                             <PieChart>
                               <Pie
                                 data={[
-                                  { name: '저축', value: Math.max(0, stats?.yearSavings ?? 0) },
-                                  { name: '지출', value: stats?.yearExpense ?? 0 }
+                                  { name: '저축', value: Math.max(0, yearSavings) },
+                                  { name: '지출', value: yearExpense }
                                 ]}
                                 cx="50%"
                                 cy="50%"
@@ -317,6 +469,7 @@ function Stats() {
                                 outerRadius={75}
                                 paddingAngle={5}
                                 dataKey="value"
+                                animationDuration={250}
                               >
                                 <Cell fill="#34a853" />
                                 <Cell fill="#c5221f" />
@@ -357,13 +510,13 @@ function Stats() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="rounded-lg bg-white p-4 text-center shadow-sm">
                           <div className="mb-2 text-3xl font-bold text-green-600">
-                            {stats?.yearSavings.toLocaleString()}원
+                            {yearSavings.toLocaleString()}원
                           </div>
                           <div className="text-sm text-gray-500">연간 저축</div>
                         </div>
                         <div className="rounded-lg bg-white p-4 text-center shadow-sm">
                           <div className="mb-2 text-3xl font-bold text-red-600">
-                            {stats?.yearExpense.toLocaleString()}원
+                            {yearExpense.toLocaleString()}원
                           </div>
                           <div className="text-sm text-gray-500">연간 지출</div>
                         </div>
