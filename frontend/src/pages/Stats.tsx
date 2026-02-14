@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStats, transformCategoryData, calculateMonthOverMonth } from '../hooks/useStats';
+import { useStats, transformCategoryData } from '../hooks/useStats';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
-import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceDot } from 'recharts';
 
 type TabType = 'monthly' | 'yearly';
 
@@ -25,6 +25,72 @@ function StatsCardSkeleton() {
 function toSafeNumber(value: unknown): number {
   const num = Number(value);
   return Number.isFinite(num) ? num : 0;
+}
+
+function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+function getProgressByDay(day: number, daysInMonth: number): number {
+  if (daysInMonth <= 1) return 100;
+  return ((day - 1) / (daysInMonth - 1)) * 100;
+}
+
+function getDayByProgress(progress: number, daysInMonth: number): number {
+  if (daysInMonth <= 1) return 1;
+  return Math.floor((progress / 100) * (daysInMonth - 1)) + 1;
+}
+
+function formatCompactKrw(value: number): string {
+  if (value >= 10000) {
+    const man = Math.round(value / 10000);
+    return `${man.toLocaleString()}만원`;
+  }
+  return `${value.toLocaleString()}원`;
+}
+
+function enforceMonotonic(values: Array<number | null>): Array<number | null> {
+  let last = 0;
+  let hasValue = false;
+
+  return values.map((value) => {
+    if (value == null) return null;
+    if (!hasValue) {
+      last = value;
+      hasValue = true;
+      return value;
+    }
+    if (value < last) return last;
+    last = value;
+    return value;
+  });
+}
+
+function getCumulativeAtProgress(
+  daily: Array<{ amount: number }>,
+  progress: number,
+  daysInMonth: number,
+  visibleDayLimit: number
+): number | null {
+  if (daysInMonth <= 0) return null;
+  const mappedDay = Math.floor((progress / 100) * Math.max(daysInMonth - 1, 0)) + 1;
+  if (mappedDay > visibleDayLimit) return null;
+
+  const idx = Math.max(0, Math.min(mappedDay - 1, daily.length - 1));
+  const current = daily[idx];
+  if (current?.amount != null) {
+    return Math.abs(toSafeNumber(current.amount));
+  }
+
+  // 중간 결측은 직전 누적값으로 유지한다.
+  for (let i = idx - 1; i >= 0; i -= 1) {
+    const prev = daily[i];
+    if (prev?.amount != null) {
+      return Math.abs(toSafeNumber(prev.amount));
+    }
+  }
+
+  return 0;
 }
 
 function Stats() {
@@ -94,40 +160,98 @@ function Stats() {
 
   // 선택한 기간에 따른 데이터 계산
   const safeCurrentMonth = {
-    expenseTotal: toSafeNumber(stats?.currentMonth?.expenseTotal),
-    total: toSafeNumber(stats?.currentMonth?.total),
     byCategory: stats?.currentMonth?.byCategory ?? {} as Record<string, number>,
-  };
-  const safePreviousMonth = {
-    expenseTotal: toSafeNumber(stats?.previousMonth?.expenseTotal),
-    total: toSafeNumber(stats?.previousMonth?.total),
-    byCategory: stats?.previousMonth?.byCategory ?? {} as Record<string, number>,
   };
   const safeCurrentMonthDaily = stats?.currentMonthDaily ?? [];
   const safePreviousMonthDaily = stats?.previousMonthDaily ?? [];
   const currentCategoryData = transformCategoryData(safeCurrentMonth.byCategory);
-  const currentMonthExpenseTotal = toSafeNumber(safeCurrentMonth.expenseTotal);
-  const previousMonthExpenseTotal = toSafeNumber(safePreviousMonth.expenseTotal);
-  const momChange = stats
-    ? calculateMonthOverMonth(currentMonthExpenseTotal, previousMonthExpenseTotal)
-    : 0;
   const yearSavings = toSafeNumber(stats?.yearSavings);
   const yearExpense = toSafeNumber(stats?.yearExpense);
   const yearSavingsRate = yearSavings + yearExpense > 0
     ? Math.round((yearSavings / (yearSavings + yearExpense)) * 100)
     : 0;
 
-  // 일별 데이터를 차트용으로 변환 (전월과 당월을 같은 일자에 매칭)
-  const maxDays = Math.max(safeCurrentMonthDaily.length, safePreviousMonthDaily.length);
-  const dailyComparisonData = stats ? Array.from({ length: maxDays }, (_, i) => ({
-    day: i + 1,
-    당월: safeCurrentMonthDaily[i]?.amount != null
-      ? Math.abs(toSafeNumber(safeCurrentMonthDaily[i]?.amount))
-      : null,
-    전월: safePreviousMonthDaily[i]?.amount != null
-      ? Math.abs(toSafeNumber(safePreviousMonthDaily[i]?.amount))
-      : null,
-  })) : [];
+  // 일별 데이터를 차트용으로 변환 (일자 축이 아닌 월 진행률 축으로 정렬)
+  const previousMonthDate = new Date(selectedYear, selectedMonth - 2, 1);
+  const previousYear = previousMonthDate.getFullYear();
+  const previousMonth = previousMonthDate.getMonth() + 1;
+  const currentMonthDays = getDaysInMonth(selectedYear, selectedMonth);
+  const previousMonthDays = getDaysInMonth(previousYear, previousMonth);
+  const today = new Date();
+  const isCurrentCalendarMonth =
+    selectedYear === today.getFullYear() &&
+    selectedMonth === today.getMonth() + 1;
+  const currentVisibleDayLimit = isCurrentCalendarMonth
+    ? Math.min(today.getDate(), currentMonthDays)
+    : currentMonthDays;
+  const referenceProgress = getProgressByDay(currentVisibleDayLimit, currentMonthDays);
+  const referenceProgressPoint = Math.max(0, Math.min(100, Math.round(referenceProgress)));
+
+  const rawComparisonData = stats
+    ? Array.from({ length: 101 }, (_, progress) => ({
+      progress,
+      당월: getCumulativeAtProgress(
+        safeCurrentMonthDaily,
+        progress,
+        currentMonthDays,
+        currentVisibleDayLimit
+      ),
+      전월: getCumulativeAtProgress(
+        safePreviousMonthDaily,
+        progress,
+        previousMonthDays,
+        previousMonthDays
+      ),
+    }))
+    : [];
+  const monotonicCurrent = enforceMonotonic(rawComparisonData.map((item) => item.당월));
+  const monotonicPrevious = enforceMonotonic(rawComparisonData.map((item) => item.전월));
+  const dailyComparisonData = rawComparisonData.map((item, index) => ({
+    progress: item.progress,
+    당월: monotonicCurrent[index],
+    전월: monotonicPrevious[index],
+  }));
+  const currentLineEnd = [...dailyComparisonData]
+    .reverse()
+    .find((item) => item.당월 != null);
+  const currentComparedExpenseFromDaily = stats
+    ? getCumulativeAtProgress(
+      safeCurrentMonthDaily,
+      referenceProgress,
+      currentMonthDays,
+      currentVisibleDayLimit
+    ) ?? 0
+    : 0;
+  const previousComparedExpenseFromDaily = stats
+    ? getCumulativeAtProgress(
+      safePreviousMonthDaily,
+      referenceProgress,
+      previousMonthDays,
+      previousMonthDays
+    ) ?? 0
+    : 0;
+  const currentComparedExpense = currentComparedExpenseFromDaily;
+  const previousComparedExpense = previousComparedExpenseFromDaily;
+  const spendDiff = currentComparedExpense - previousComparedExpense;
+  const spendDiffRate = previousComparedExpense > 0
+    ? Math.round((spendDiff / previousComparedExpense) * 100)
+    : 0;
+  const comparisonAmounts = dailyComparisonData
+    .flatMap((item) => [item.당월, item.전월])
+    .filter((amount): amount is number => amount != null);
+  const yMax = comparisonAmounts.length > 0 ? Math.max(...comparisonAmounts) : 0;
+  const yPadding = yMax > 0 ? yMax * 0.08 : 1000;
+  const yDomainMax = yMax + yPadding;
+  const referencePointProgress = currentLineEnd?.progress ?? referenceProgressPoint;
+  const referencePointAmount = currentLineEnd?.당월 ?? currentComparedExpenseFromDaily;
+  const displayedExpense = currentLineEnd?.당월 ?? currentComparedExpenseFromDaily;
+  const expenseFromCategory = Object.values(safeCurrentMonth.byCategory).reduce((sum, value) => {
+    const amount = toSafeNumber(value);
+    return sum + (amount > 0 ? amount : 0);
+  }, 0);
+  const expenseDisplayValue = displayedExpense > 0 ? displayedExpense : expenseFromCategory;
+  const xTicks = Array.from(new Set([0, referenceProgressPoint, 100])).sort((a, b) => a - b);
+  const headlineLabel = isCurrentCalendarMonth ? '오늘까지' : `${selectedMonth}월 말까지`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -149,7 +273,7 @@ function Stats() {
       {/* Main Content */}
       <main className="mx-auto max-w-2xl space-y-6 px-4 safe-area-header pb-6 sm:px-6">
         {/* 탭 메뉴 */}
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl">
           <div className="flex border-b border-gray-200">
             <button
               onClick={() => setActiveTab('monthly')}
@@ -175,7 +299,7 @@ function Stats() {
 
           {/* 월별 탭 내용 */}
           {activeTab === 'monthly' && (
-            <div className="p-6">
+            <div className="pb-4 pt-4">
               <div className="mb-6 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
                 <button
                   type="button"
@@ -293,53 +417,114 @@ function Stats() {
               {/* 월별 통계 내용 */}
               <div className="space-y-6">
                 {/* 전월 대비 증감 */}
-                <section className="overflow-hidden rounded-xl bg-gray-50">
-                  <div className="border-b border-gray-200 px-5 py-3">
-                    <h3 className="text-base font-semibold text-gray-900">전월 대비 지출 증감 (일별 누적)</h3>
+                <section className="overflow-hidden rounded-xl bg-gray-50 py-5">
+                  <div className="mb-4">
+                    <h3 className="text-[1.2rem] font-extrabold tracking-tight text-gray-900">
+                      {headlineLabel} {formatCompactKrw(expenseDisplayValue)} 썼어요
+                    </h3>
+                    <p className="mt-1 text-[0.9rem] font-semibold tracking-tight text-gray-600">
+                      지난달보다{' '}
+                      <span className={spendDiff > 0 ? 'text-rose-500' : spendDiff < 0 ? 'text-blue-600' : 'text-gray-600'}>
+                        {spendDiff === 0 ? '같은 수준' : `${formatCompactKrw(Math.abs(spendDiff))} ${spendDiff > 0 ? '더 쓰는 중' : '덜 쓰는 중'}`}
+                      </span>
+                    </p>
                   </div>
-                  <div className="p-5">
+                  <div>
                     <div className="mb-5 h-48">
                       {isPending ? (
                         <ChartSkeleton />
                       ) : (
                         <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                          <LineChart data={dailyComparisonData}>
+                          <AreaChart data={dailyComparisonData}>
+                            <defs>
+                              <linearGradient id="previousSpendFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#d2d7df" stopOpacity={0.35} />
+                                <stop offset="100%" stopColor="#d2d7df" stopOpacity={0.05} />
+                              </linearGradient>
+                            </defs>
                             <XAxis
-                              dataKey="day"
-                              tick={false}
+                              dataKey="progress"
+                              type="number"
+                              domain={[0, 100]}
+                              ticks={xTicks}
+                              tickFormatter={(value: number) => `${selectedMonth}.${getDayByProgress(value, currentMonthDays)}`}
+                              tick={{ fill: '#8a94a4', fontSize: 14 }}
                               tickLine={false}
                               axisLine={false}
-                              height={0}
+                              dy={10}
                             />
                             <YAxis
                               tick={false}
                               tickLine={false}
                               axisLine={false}
                               width={0}
+                              domain={[0, yDomainMax]}
                             />
-                            <Legend />
-                            <Line
-                              type="natural"
-                              dataKey="당월"
-                              stroke="#1a73e8"
-                              strokeWidth={2}
-                              dot={false}
-                              activeDot={false}
-                              connectNulls={false}
-                              animationDuration={250}
-                            />
-                            <Line
-                              type="natural"
+                            <Area
+                              type="monotone"
                               dataKey="전월"
-                              stroke="#9ca3af"
+                              stroke="none"
+                              fill="url(#previousSpendFill)"
+                              dot={false}
+                              isAnimationActive={false}
+                              legendType="none"
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="전월"
+                              stroke="#c8ced8"
                               strokeWidth={2}
-                              strokeDasharray="5 5"
                               dot={false}
                               activeDot={false}
                               connectNulls={false}
                               animationDuration={250}
                             />
-                          </LineChart>
+                            <Line
+                              type="monotone"
+                              dataKey="당월"
+                              stroke="#e15764"
+                              strokeWidth={3}
+                              dot={false}
+                              activeDot={false}
+                              connectNulls={false}
+                              animationDuration={250}
+                            />
+                            {currentComparedExpense != null && (
+                              <ReferenceDot
+                                x={referencePointProgress}
+                                y={referencePointAmount}
+                                r={0}
+                                shape={(props: any) => {
+                                  const cx = props?.cx ?? 0;
+                                  const cy = props?.cy ?? 0;
+                                  return (
+                                    <g>
+                                      <circle cx={cx} cy={cy} r={7} fill="#e15764">
+                                        <animate
+                                          attributeName="r"
+                                          values="7;22"
+                                          dur="1.6s"
+                                          repeatCount="indefinite"
+                                        />
+                                        <animate
+                                          attributeName="opacity"
+                                          values="0.42;0"
+                                          dur="1.6s"
+                                          repeatCount="indefinite"
+                                        />
+                                      </circle>
+                                      <circle cx={cx} cy={cy} r={4.5} fill="#e15764" />
+                                    </g>
+                                  );
+                                }}
+                              />
+                            )}
+                            <Legend
+                              verticalAlign="bottom"
+                              align="center"
+                              wrapperStyle={{ bottom: -8 }}
+                            />
+                          </AreaChart>
                         </ResponsiveContainer>
                       )}
                     </div>
@@ -352,14 +537,14 @@ function Stats() {
                       ) : (
                         <>
                           <div className="rounded-lg bg-white p-3 text-center shadow-sm">
-                            <div className={`mb-1 text-xl font-bold ${momChange > 0 ? 'text-green-600' : momChange < 0 ? 'text-red-600' : 'text-gray-700'}`}>
-                              {momChange > 0 ? '+' : ''}{momChange}%
+                            <div className={`mb-1 text-xl font-bold ${spendDiffRate > 0 ? 'text-rose-500' : spendDiffRate < 0 ? 'text-blue-600' : 'text-gray-700'}`}>
+                              {spendDiffRate > 0 ? '+' : ''}{spendDiffRate}%
                             </div>
                             <div className="text-xs text-gray-500">지출 증감</div>
                           </div>
                           <div className="rounded-lg bg-white p-3 text-center shadow-sm">
                             <div className="mb-1 text-xl font-bold text-gray-900">
-                              {currentMonthExpenseTotal.toLocaleString()}원
+                              {expenseDisplayValue.toLocaleString()}원
                             </div>
                             <div className="text-xs text-gray-500">당월 지출</div>
                           </div>
@@ -413,7 +598,7 @@ function Stats() {
 
           {/* 연도별 탭 내용 */}
           {activeTab === 'yearly' && (
-            <div className="p-6">
+            <div className="pb-4 pt-4">
               {/* 연도 선택 UI */}
               <div className="mb-6">
                 <label className="mb-2 block text-sm font-medium text-gray-700">연도</label>
