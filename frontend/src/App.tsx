@@ -24,7 +24,7 @@ function AppContent() {
   // 로그인된 사용자만 자동 갱신 초기화
   useEffect(() => {
     if (user) {
-      initAutoRefresh();
+      void initAutoRefresh();
     }
   }, [user]);
 

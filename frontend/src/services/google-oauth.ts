@@ -7,6 +7,7 @@
 // Access Token 저장소
 const TOKEN_STORAGE_KEY = 'google_access_token';
 const TOKEN_EXPIRY_KEY = 'google_token_expiry';
+const GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 
 // 자동 갱신 설정
 const REFRESH_THRESHOLD = 30 * 60 * 1000; // 30분 (밀리초)
@@ -18,6 +19,12 @@ interface TokenResponse {
   token_type: string;
 }
 
+interface GoogleUser {
+  email: string;
+  name: string;
+  picture: string;
+}
+
 let accessToken: string | null = localStorage.getItem(TOKEN_STORAGE_KEY);
 let tokenExpiry: number | null = TOKEN_EXPIRY_KEY in localStorage
   ? parseInt(localStorage.getItem(TOKEN_EXPIRY_KEY) || '0', 10)
@@ -26,13 +33,119 @@ let tokenExpiry: number | null = TOKEN_EXPIRY_KEY in localStorage
 // Token Client 전역 변수 (자동 갱신용)
 let tokenClient: any = null;
 let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+let resolveRefresh: ((value: boolean) => void) | null = null;
+let gsiLoadPromise: Promise<void> | null = null;
+let isAutoRefreshInitialized = false;
+
+function settleRefresh(result: boolean) {
+  if (resolveRefresh) {
+    resolveRefresh(result);
+  }
+  resolveRefresh = null;
+  refreshPromise = null;
+}
+
+export async function ensureGoogleIdentityLoaded(): Promise<void> {
+  if (window.google?.accounts?.oauth2) {
+    return;
+  }
+
+  if (gsiLoadPromise) {
+    return gsiLoadPromise;
+  }
+
+  gsiLoadPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${GSI_SCRIPT_SRC}"]`);
+    const script = existingScript ?? document.createElement('script');
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      clearInterval(intervalId);
+      script.removeEventListener('load', onLoad);
+      script.removeEventListener('error', onError);
+    };
+
+    const onLoad = () => {
+      if (window.google?.accounts?.oauth2) {
+        cleanup();
+        resolve();
+      }
+    };
+
+    const onError = () => {
+      cleanup();
+      gsiLoadPromise = null;
+      reject(new Error('Google 인증 스크립트를 불러오지 못했습니다.'));
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      gsiLoadPromise = null;
+      reject(new Error('Google 인증 초기화가 지연되고 있습니다. 네트워크 상태를 확인해주세요.'));
+    }, 10000);
+    const intervalId = window.setInterval(() => {
+      if (window.google?.accounts?.oauth2) {
+        cleanup();
+        resolve();
+      }
+    }, 100);
+
+    script.addEventListener('load', onLoad);
+    script.addEventListener('error', onError);
+
+    if (!existingScript) {
+      script.src = GSI_SCRIPT_SRC;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    } else if (window.google?.accounts?.oauth2) {
+      cleanup();
+      resolve();
+    }
+  });
+
+  return gsiLoadPromise;
+}
+
+function initTokenClient() {
+  if (tokenClient || !window.google?.accounts?.oauth2) {
+    return;
+  }
+
+  tokenClient = window.google.accounts.oauth2.initTokenClient({
+    client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+    scope: 'email profile',
+    callback: async (response: any) => {
+      isRefreshing = false;
+      try {
+        if (response.access_token) {
+          await handleGoogleSignIn(response);
+          console.log('[AutoRefresh] Token refreshed successfully');
+          settleRefresh(true);
+          return;
+        }
+        console.error('[AutoRefresh] Token refresh failed:', response);
+        settleRefresh(false);
+      } catch (error) {
+        console.error('[AutoRefresh] Token refresh callback error:', error);
+        settleRefresh(false);
+      }
+    },
+    error_callback: (error: any) => {
+      isRefreshing = false;
+      console.error('[AutoRefresh] Token refresh error:', error);
+      settleRefresh(false);
+    },
+  });
+}
 
 /**
  * Google 로그인 핸들러
  *
  * GSI 라이브러리에서 호출되는 콜백 함수
  */
-export async function handleGoogleSignIn(response: TokenResponse) {
+export async function handleGoogleSignIn(response: TokenResponse): Promise<GoogleUser | null> {
   accessToken = response.access_token;
   tokenExpiry = Date.now() + (response.expires_in * 1000);
 
@@ -56,21 +169,6 @@ export async function handleGoogleSignIn(response: TokenResponse) {
     });
 
     console.log('[Google SignIn] UserInfo API status:', userInfoResponse.status);
-
-    // tokeninfo API도 호출하여 토큰 검증 (GAS와 동일한 API)
-    const tokeninfoResponse = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${response.access_token}`);
-    console.log('[Google SignIn] TokenInfo API status:', tokeninfoResponse.status);
-    if (tokeninfoResponse.ok) {
-      const tokeninfo = await tokeninfoResponse.json();
-      console.log('[Google SignIn] TokenInfo data:', {
-        email: tokeninfo.email,
-        aud: tokeninfo.aud,
-        scope: tokeninfo.scope,
-        exp: tokeninfo.exp
-      });
-    } else {
-      console.error('[Google SignIn] TokenInfo error:', await tokeninfoResponse.text());
-    }
 
     if (userInfoResponse.ok) {
       const userInfo = await userInfoResponse.json();
@@ -96,48 +194,79 @@ export async function handleGoogleSignIn(response: TokenResponse) {
   return null;
 }
 
+export async function signInWithGoogle(): Promise<GoogleUser> {
+  await ensureGoogleIdentityLoaded();
+
+  return new Promise((resolve, reject) => {
+    const interactiveClient = window.google?.accounts?.oauth2.initTokenClient({
+      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+      scope: 'email profile',
+      callback: async (response: TokenResponse) => {
+        try {
+          if (!response.access_token) {
+            reject(new Error('로그인이 취소되었습니다.'));
+            return;
+          }
+
+          const user = await handleGoogleSignIn(response);
+          if (!user) {
+            reject(new Error('사용자 정보를 불러오지 못했습니다.'));
+            return;
+          }
+
+          resolve(user);
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error('로그인에 실패했습니다.'));
+        }
+      },
+      error_callback: (error: any) => {
+        console.error('[Google SignIn] initTokenClient error:', error);
+        reject(new Error('Google 로그인 팝업을 열 수 없습니다.'));
+      },
+    });
+
+    if (!interactiveClient) {
+      reject(new Error('Google 로그인 초기화에 실패했습니다.'));
+      return;
+    }
+
+    interactiveClient.requestAccessToken({ prompt: 'consent' });
+  });
+}
+
 /**
  * 자동 토큰 갱신 초기화
  *
  * - 앱 실행 시점에 토큰 상태 확인 및 갱신
  * - foreground 진입 시 30분 미만 남은 경우 silent 갱신
  */
-export function initAutoRefresh() {
-  if (window.google?.accounts?.oauth2 && !tokenClient) {
-    tokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-      scope: 'email profile',
-      callback: async (response: any) => {
-        isRefreshing = false;
-
-        if (response.access_token) {
-          await handleGoogleSignIn(response);
-          console.log('[AutoRefresh] Token refreshed successfully');
-        } else {
-          console.error('[AutoRefresh] Token refresh failed:', response);
-          window.dispatchEvent(new CustomEvent('moni-auth-expired'));
-        }
-      },
-      error_callback: (error: any) => {
-        isRefreshing = false;
-        console.error('[AutoRefresh] Token refresh error:', error);
-        window.dispatchEvent(new CustomEvent('moni-auth-expired'));
-      },
-    });
+export async function initAutoRefresh() {
+  try {
+    await ensureGoogleIdentityLoaded();
+    initTokenClient();
+  } catch (error) {
+    console.warn('[AutoRefresh] GSI script load skipped:', error);
+    return;
   }
 
   // foreground 감지 이벤트 등록
-  const events = ['visibilitychange', 'pageshow', 'focus'];
-  events.forEach((event) => {
-    window.addEventListener(event, handleForeground);
-  });
+  if (!isAutoRefreshInitialized) {
+    const events = ['visibilitychange', 'pageshow', 'focus'];
+    events.forEach((event) => {
+      window.addEventListener(event, handleForeground);
+    });
+    isAutoRefreshInitialized = true;
+  }
 
   // 실행 시점 토큰 상태 확인
   if (accessToken && tokenExpiry) {
     const remainingTime = tokenExpiry - Date.now();
     if (remainingTime < REFRESH_THRESHOLD) {
       console.log(`[AutoRefresh] App start: Token expires in ${Math.floor(remainingTime / 60000)}min, refreshing...`);
-      refreshAccessToken();
+      const refreshed = await refreshAccessToken({ dispatchExpiredEvent: false });
+      if (!refreshed) {
+        window.dispatchEvent(new CustomEvent('moni-auth-expired'));
+      }
     } else {
       console.log(`[AutoRefresh] App start: Token valid for ${Math.floor(remainingTime / 60000)}min`);
     }
@@ -178,7 +307,7 @@ function handleForeground(e: Event) {
 
   if (remainingTime < REFRESH_THRESHOLD) {
     console.log(`[AutoRefresh] Token expires in ${Math.floor(remainingTime / 60000)}min, refreshing...`);
-    refreshAccessToken();
+    void refreshAccessToken();
   }
 }
 
@@ -187,23 +316,57 @@ function handleForeground(e: Event) {
  *
  * prompt: ''로 silent 갱신을 시도합니다.
  */
-function refreshAccessToken() {
+async function refreshAccessToken(options: { dispatchExpiredEvent?: boolean } = {}): Promise<boolean> {
+  const { dispatchExpiredEvent = true } = options;
+
+  try {
+    await ensureGoogleIdentityLoaded();
+    initTokenClient();
+  } catch (error) {
+    console.warn('[AutoRefresh] Cannot refresh without GSI:', error);
+    if (dispatchExpiredEvent) {
+      window.dispatchEvent(new CustomEvent('moni-auth-expired'));
+    }
+    return false;
+  }
+
   if (!tokenClient) {
     console.warn('[AutoRefresh] TokenClient not initialized');
-    return;
+    if (dispatchExpiredEvent) {
+      window.dispatchEvent(new CustomEvent('moni-auth-expired'));
+    }
+    return false;
+  }
+
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
   }
 
   isRefreshing = true;
+  refreshPromise = new Promise((resolve) => {
+    resolveRefresh = resolve;
+  });
 
   // prompt: ''로 silent 갱신 (사용자 동의가 이미 있는 경우)
   tokenClient.requestAccessToken({ prompt: '' });
+
+  const refreshed = await refreshPromise;
+  if (!refreshed && dispatchExpiredEvent) {
+    window.dispatchEvent(new CustomEvent('moni-auth-expired'));
+  }
+  return refreshed;
 }
 
 /**
  * 현재 Access Token 반환
  */
 export async function getAccessToken(): Promise<string> {
-  if (!accessToken || !tokenExpiry || Date.now() >= tokenExpiry) {
+  if (accessToken && tokenExpiry && Date.now() < tokenExpiry) {
+    return accessToken;
+  }
+
+  const refreshed = await refreshAccessToken({ dispatchExpiredEvent: false });
+  if (!refreshed || !accessToken || !tokenExpiry || Date.now() >= tokenExpiry) {
     throw new Error('Not authenticated or token expired');
   }
 
@@ -266,7 +429,7 @@ declare global {
       accounts: {
         oauth2: {
           initTokenClient: (config: any) => {
-            requestAccessToken: () => void;
+            requestAccessToken: (config?: any) => void;
           };
           revoke: (token: string) => void;
         };

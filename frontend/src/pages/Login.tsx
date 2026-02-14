@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { handleGoogleSignIn } from '../services/google-oauth';
+import { signInWithGoogle } from '../services/google-oauth';
 import { useAuth } from '../contexts/AuthContext';
 
 function Login() {
@@ -9,36 +9,23 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (loading) {
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    try {
-      // Google Token Client 초기화
-      const tokenClient = window.google?.accounts.oauth2.initTokenClient({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-        scope: 'email profile',
-        callback: async (response: any) => {
-          if (response.access_token) {
-            try {
-              const user = await handleGoogleSignIn(response);
-              setUser(user);
-              navigate('/', { replace: true });
-            } catch (err: any) {
-              setError('로그인에 실패했습니다.');
-              console.error(err);
-              setLoading(false);
-            }
-          } else {
-            setError('로그인이 취소되었습니다.');
-            setLoading(false);
-          }
-        },
-      });
 
-      tokenClient?.requestAccessToken();
+    try {
+      const user = await signInWithGoogle();
+      setUser(user);
+      navigate('/', { replace: true });
     } catch (err) {
-      setError('Google 로그인 초기화에 실패했습니다.');
+      const message = err instanceof Error ? err.message : '로그인에 실패했습니다.';
+      setError(message);
       console.error(err);
+    } finally {
       setLoading(false);
     }
   };
