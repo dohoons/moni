@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { ChangeEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { type ParsedInput } from '../lib/parser';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../constants';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
@@ -69,6 +69,11 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
 
   if (!isOpen) return null;
 
+  const handleFormSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    handleSubmit();
+  };
+
   const handleSubmit = () => {
     const numAmount = parseInt(amount) || 0;
     if (numAmount === 0) {
@@ -137,37 +142,38 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
           </button>
         </div>
 
-        {/* Form */}
-        <div className="space-y-4 overflow-y-auto px-6 py-4">
-          {/* 날짜 (편집 모드에서만 표시) */}
-          {isEditMode && (
-            <div>
-              <label htmlFor="date" className="mb-2 block text-sm font-medium text-gray-700">날짜 (YYYYMMDD)</label>
-              <input
-                id="date"
-                type="text"
-                inputMode="numeric"
-                value={date.replace(/-/g, '')}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  if (val.length > 8) val = val.slice(0, 8);
+        <form onSubmit={handleFormSubmit} className="flex min-h-0 flex-1 flex-col">
+          {/* Form */}
+          <div className="space-y-4 overflow-y-auto px-6 py-4">
+            {/* 날짜 (편집 모드에서만 표시) */}
+            {isEditMode && (
+              <div>
+                <label htmlFor="date" className="mb-2 block text-sm font-medium text-gray-700">날짜 (YYYYMMDD)</label>
+                <input
+                  id="date"
+                  type="text"
+                  inputMode="numeric"
+                  value={date.replace(/-/g, '')}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val.length > 8) val = val.slice(0, 8);
 
-                  // YYYY-MM-DD 형식으로 변환하여 저장
-                  let formatted = val;
-                  if (val.length >= 5) {
-                    formatted = val.slice(0, 4) + '-' + val.slice(4, 6) + (val.length > 6 ? '-' + val.slice(6) : '');
-                  } else if (val.length >= 4) {
-                    formatted = val.slice(0, 4) + '-' + val.slice(4);
-                  }
+                    // YYYY-MM-DD 형식으로 변환하여 저장
+                    let formatted = val;
+                    if (val.length >= 5) {
+                      formatted = val.slice(0, 4) + '-' + val.slice(4, 6) + (val.length > 6 ? '-' + val.slice(6) : '');
+                    } else if (val.length >= 4) {
+                      formatted = val.slice(0, 4) + '-' + val.slice(4);
+                    }
 
-                  setDate(formatted);
-                }}
-                placeholder="20250119"
-                maxLength={8}
-                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-          )}
+                    setDate(formatted);
+                  }}
+                  placeholder="20250119"
+                  maxLength={8}
+                  className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            )}
 
           {/* 수입/지출 토글 */}
           <div>
@@ -265,33 +271,36 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
               ))}
             </select>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex flex-shrink-0 gap-3 border-t border-gray-200 px-6 py-4">
-          {isEditMode && (
-            <button
-              onClick={handleDelete}
-              className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 font-medium text-red-700 transition-all hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-            >
-              삭제
-            </button>
-          )}
-          <div className="flex flex-1 gap-3">
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-            >
-              취소
-            </button>
-            <button
-              onClick={handleSubmit}
-              className="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              {isEditMode ? '수정' : '기록하기'}
-            </button>
           </div>
-        </div>
+
+          {/* Footer */}
+          <div className="flex flex-shrink-0 gap-3 border-t border-gray-200 px-6 py-4">
+            {isEditMode && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 font-medium text-red-700 transition-all hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              >
+                삭제
+              </button>
+            )}
+            <div className="flex flex-1 gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                className="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                {isEditMode ? '수정' : '기록하기'}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );

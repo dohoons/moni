@@ -12,6 +12,7 @@ function SmartEntry({ onSubmit, onParsedChange }: SmartEntryProps) {
   const [input, setInput] = useState('');
   const [parsed, setParsed] = useState<ParsedInput | null>(null);
   const isSubmittingRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -39,6 +40,9 @@ function SmartEntry({ onSubmit, onParsedChange }: SmartEntryProps) {
       setInput('');
       setParsed(null);
       onParsedChange?.(null);
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
       // 다음 제출 가능하도록 약간의 지연 후 reset
       setTimeout(() => {
         isSubmittingRef.current = false;
@@ -57,6 +61,7 @@ function SmartEntry({ onSubmit, onParsedChange }: SmartEntryProps) {
     <div>
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
           value={input}
           onChange={handleChange}
@@ -128,6 +133,7 @@ function SmartEntry({ onSubmit, onParsedChange }: SmartEntryProps) {
           </div>
 
           <button
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleSubmit}
             className="mt-3 w-full rounded-xl bg-blue-600 px-6 py-3 font-medium text-white transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:scale-[0.98]"
           >
