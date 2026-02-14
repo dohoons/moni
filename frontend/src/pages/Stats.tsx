@@ -5,6 +5,7 @@ import { useStats, transformCategoryData } from '../hooks/useStats';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { useDialogViewport } from '../hooks/useDialogViewport';
 import { PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceDot } from 'recharts';
+import ModalShell from '../components/ModalShell';
 
 type TabType = 'monthly' | 'yearly';
 
@@ -390,17 +391,15 @@ function Stats() {
               </div>
 
               {isMonthPickerOpen && (
-                <div
-                  className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
-                  onClick={() => setIsMonthPickerOpen(false)}
+                <ModalShell
+                  open={isMonthPickerOpen}
+                  onBackdropClick={() => setIsMonthPickerOpen(false)}
+                  overlayClassName="fixed inset-0 z-30 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
+                  panelClassName="flex w-full max-w-sm max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl"
+                  panelRef={monthPickerRef}
+                  panelStyle={monthPickerDialogStyle}
+                  panelProps={monthPickerPanelTouch}
                 >
-                  <div
-                    className="flex w-full max-w-sm max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl"
-                    onClick={(e) => e.stopPropagation()}
-                    ref={monthPickerRef}
-                    style={monthPickerDialogStyle}
-                    {...monthPickerPanelTouch}
-                  >
                     <div className="flex justify-center px-5 pt-3 pb-1 sm:hidden">
                       <div className="h-1.5 w-10 rounded-full bg-gray-300" />
                     </div>
@@ -465,8 +464,7 @@ function Stats() {
                       </button>
                       </div>
                     </div>
-                  </div>
-                </div>
+                </ModalShell>
               )}
 
               {/* 에러 표시 */}

@@ -5,6 +5,7 @@ import {
   type MessageDialogOptions,
 } from '../services/message-dialog';
 import { useDialogViewport } from '../hooks/useDialogViewport';
+import ModalShell from './ModalShell';
 
 type DialogType = 'alert' | 'confirm';
 type DialogAction = 'primary' | 'dismiss';
@@ -130,73 +131,71 @@ function MessageDialogProvider({ children }: MessageDialogProviderProps) {
       {children}
       {topDialog &&
         createPortal(
-          <div
-            className="fixed inset-0 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-            style={{ zIndex: 2000 + dialogStack.length * 10 }}
-            onClick={() => {
+          <ModalShell
+            open={Boolean(topDialog)}
+            onBackdropClick={() => {
               if (topDialog.options?.allowEscClose === false) return;
               closeTopDialog('dismiss');
             }}
+            overlayClassName="fixed inset-0 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+            overlayStyle={{ zIndex: 2000 + dialogStack.length * 10 }}
+            panelClassName="w-full max-w-none rounded-t-2xl bg-white shadow-xl ring-1 ring-black/5 sm:max-w-sm sm:rounded-2xl"
+            panelStyle={{
+              marginBottom: isMobile ? keyboardInset : undefined,
+              maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
+            }}
+            panelProps={{
+              role: topDialog.type === 'alert' ? 'alertdialog' : 'dialog',
+              'aria-modal': true,
+              'aria-label': topDialog.options?.title || topDialog.message,
+            }}
           >
-            <div
-              role={topDialog.type === 'alert' ? 'alertdialog' : 'dialog'}
-              aria-modal="true"
-              aria-label={topDialog.options?.title || topDialog.message}
-              className="w-full max-w-none rounded-t-2xl bg-white shadow-xl ring-1 ring-black/5 sm:max-w-sm sm:rounded-2xl"
-              style={{
-                marginBottom: isMobile ? keyboardInset : undefined,
-                maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
-              }}
-              data-message-dialog
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="border-b border-gray-100 px-6 py-5 sm:px-5 sm:py-4">
-                <h3 className="text-lg font-bold text-gray-900 sm:text-base sm:font-semibold">
-                  {topDialog.options?.title || topDialog.message}
-                </h3>
-              </div>
-              {topDialog.options?.description && (
-                <div className="px-6 py-5 sm:px-5 sm:py-4">
-                  <p className="whitespace-pre-wrap text-base leading-7 text-gray-700 sm:text-sm sm:leading-6">
-                    {topDialog.options.description}
-                  </p>
+                <div className="border-b border-gray-100 px-6 py-5 sm:px-5 sm:py-4">
+                  <h3 className="text-lg font-bold text-gray-900 sm:text-base sm:font-semibold">
+                    {topDialog.options?.title || topDialog.message}
+                  </h3>
                 </div>
-              )}
-              <div className="border-t border-gray-100 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-5 sm:py-4">
-                {topDialog.type === 'confirm' && (
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => closeTopDialog('dismiss')}
-                      className={secondaryButtonClass}
-                    >
-                      {topDialog.options?.secondaryLabel || '취소'}
-                    </button>
-                    <button
-                      type="button"
-                      ref={primaryButtonRef}
-                      onClick={() => closeTopDialog('primary')}
-                      className={primaryButtonClass}
-                    >
-                      {topDialog.options?.primaryLabel || '확인'}
-                    </button>
+                {topDialog.options?.description && (
+                  <div className="px-6 py-5 sm:px-5 sm:py-4">
+                    <p className="whitespace-pre-wrap text-base leading-7 text-gray-700 sm:text-sm sm:leading-6">
+                      {topDialog.options.description}
+                    </p>
                   </div>
                 )}
-                {topDialog.type === 'alert' && (
-                  <div className="flex">
-                    <button
-                      type="button"
-                      ref={primaryButtonRef}
-                      onClick={() => closeTopDialog('primary')}
-                      className={primaryButtonClass}
-                    >
-                      {topDialog.options?.primaryLabel || '확인'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>,
+                <div className="border-t border-gray-100 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-5 sm:py-4">
+                  {topDialog.type === 'confirm' && (
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => closeTopDialog('dismiss')}
+                        className={secondaryButtonClass}
+                      >
+                        {topDialog.options?.secondaryLabel || '취소'}
+                      </button>
+                      <button
+                        type="button"
+                        ref={primaryButtonRef}
+                        onClick={() => closeTopDialog('primary')}
+                        className={primaryButtonClass}
+                      >
+                        {topDialog.options?.primaryLabel || '확인'}
+                      </button>
+                    </div>
+                  )}
+                  {topDialog.type === 'alert' && (
+                    <div className="flex">
+                      <button
+                        type="button"
+                        ref={primaryButtonRef}
+                        onClick={() => closeTopDialog('primary')}
+                        className={primaryButtonClass}
+                      >
+                        {topDialog.options?.primaryLabel || '확인'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+          </ModalShell>,
           document.body
         )}
     </>

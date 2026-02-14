@@ -5,6 +5,7 @@ import { getPendingRecords, clearPendingRecords, removePendingRecordByIndex, get
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { useDialogViewport } from '../hooks/useDialogViewport';
 import { showAlert, showConfirm } from '../services/message-dialog';
+import ModalShell from './ModalShell';
 
 interface SyncQueueModalProps {
   isOpen: boolean;
@@ -279,17 +280,15 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-      onClick={onClose}
+    <ModalShell
+      open={isOpen}
+      onBackdropClick={onClose}
+      overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+      panelClassName="flex w-full max-w-md max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl"
+      panelRef={panelRef}
+      panelStyle={dialogStyle}
+      panelProps={panelTouch}
     >
-      <div
-        className="flex w-full max-w-md max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-        ref={panelRef}
-        style={dialogStyle}
-        {...panelTouch}
-      >
         <div className="flex justify-center px-6 pt-3 pb-1 sm:hidden">
           <div className="h-1.5 w-10 rounded-full bg-gray-300" />
         </div>
@@ -372,8 +371,7 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
             </button>
           </div>
         )}
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 

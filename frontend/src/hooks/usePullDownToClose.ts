@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { CSSProperties, TouchEvent } from 'react';
 
 interface UsePullDownToCloseOptions {
@@ -32,27 +32,6 @@ export function usePullDownToClose({ onClose, threshold = 96, enabled = true }: 
   const startXRef = useRef<number | null>(null);
   const currentYRef = useRef(0);
   const shouldDragRef = useRef(false);
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    const originalBodyOverflow = document.body.style.overflow;
-    const originalBodyOverscroll = document.body.style.overscrollBehavior;
-    const originalHtmlOverflow = document.documentElement.style.overflow;
-    const originalHtmlOverscroll = document.documentElement.style.overscrollBehavior;
-
-    document.body.style.overflow = 'hidden';
-    document.body.style.overscrollBehavior = 'none';
-    document.documentElement.style.overflow = 'hidden';
-    document.documentElement.style.overscrollBehavior = 'none';
-
-    return () => {
-      document.body.style.overflow = originalBodyOverflow;
-      document.body.style.overscrollBehavior = originalBodyOverscroll;
-      document.documentElement.style.overflow = originalHtmlOverflow;
-      document.documentElement.style.overscrollBehavior = originalHtmlOverscroll;
-    };
-  }, [enabled]);
 
   const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
     if (!enabled) return;
