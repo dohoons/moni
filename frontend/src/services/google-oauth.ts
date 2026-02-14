@@ -358,6 +358,13 @@ async function refreshAccessToken(options: { dispatchExpiredEvent?: boolean } = 
 }
 
 /**
+ * 인증 실패 시 강제로 1회 silent 갱신 시도
+ */
+export async function forceRefreshAccessToken(): Promise<boolean> {
+  return refreshAccessToken({ dispatchExpiredEvent: false });
+}
+
+/**
  * 현재 Access Token 반환
  */
 export async function getAccessToken(): Promise<string> {

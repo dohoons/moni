@@ -49,7 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             error.message === 'Not authenticated or token expired' ||
             error.message.startsWith('Unauthorized:') ||
             error.message.startsWith('Invalid access token format') ||
-            error.message.startsWith('Token verification failed')
+            error.message.startsWith('Token verification failed') ||
+            error.message.includes('Token verification failed')
           ) {
             logout();
             navigate('/login');

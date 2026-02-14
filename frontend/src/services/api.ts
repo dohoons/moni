@@ -1,4 +1,4 @@
-import { getAccessToken } from './google-oauth';
+import { forceRefreshAccessToken, getAccessToken } from './google-oauth';
 import type { ParsedInput } from '../lib/parser';
 
 const GAS_WEB_APP_URL = import.meta.env.VITE_GAS_WEB_APP_URL;
@@ -17,7 +17,8 @@ interface ApiResponse<T = any> {
  */
 async function request<T = any>(
   path: string,
-  data?: any
+  data?: any,
+  allowAuthRetry = true
 ): Promise<ApiResponse<T>> {
   // Google Access Token 획득
   const accessToken = await getAccessToken();
@@ -46,16 +47,32 @@ async function request<T = any>(
     throw new Error('Invalid response');
   }
 
+  let result: ApiResponse<T>;
   try {
-    const result = JSON.parse(text) as ApiResponse<T>;
-    // success: false인 경우 에러로 처리
-    if (!result.success && result.error) {
-      throw new Error(result.error);
-    }
-    return result;
+    result = JSON.parse(text) as ApiResponse<T>;
   } catch {
     throw new Error('Invalid response: ' + text.substring(0, 100));
   }
+
+  // success: false인 경우 에러로 처리
+  if (!result.success && result.error) {
+    const isAuthError =
+      result.error.includes('Token verification failed') ||
+      result.error.includes('Unauthorized:') ||
+      result.error.includes('Invalid access token format');
+
+    // iOS Safari/PWA에서 저장된 토큰이 서버에서 무효 처리된 경우가 있어 1회 재발급 후 재시도
+    if (allowAuthRetry && isAuthError) {
+      const refreshed = await forceRefreshAccessToken();
+      if (refreshed) {
+        return request<T>(path, data, false);
+      }
+    }
+
+    throw new Error(result.error);
+  }
+
+  return result;
 }
 
 export const api = {
