@@ -26,7 +26,7 @@ const PAGE_SIZE = 40;
 function Home() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -459,11 +459,6 @@ function Home() {
                   {isOnline ? '온라인' : '오프라인'}
                 </span>
               </div>
-              {user && (
-                <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">
-                  {user.email}
-                </p>
-              )}
             </div>
             <div className="flex gap-2">
               <button
