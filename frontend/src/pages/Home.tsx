@@ -32,6 +32,7 @@ function Home() {
   const [setupRequired, setSetupRequired] = useState(false);
   const [showDetailEntry, setShowDetailEntry] = useState(false);
   const [editRecord, setEditRecord] = useState<Record | null>(null);
+  const [quickParsed, setQuickParsed] = useState<ParsedInput | null>(null);
   const [showSyncQueueModal, setShowSyncQueueModal] = useState(false);
 
   // Intersection Observer용 ref
@@ -170,15 +171,22 @@ function Home() {
     });
 
     try {
-      const result = await createRecord(parsed);
+      const result = await createRecord(parsed, tempId);
 
       if (result.queued) {
         alert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
-      // 저장 완료 후 로딩 상태 제거
+      // 온라인 저장 시 임시 ID를 실제 ID로 즉시 교체 (수정 시 Record not found 방지)
       queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean })[] = []) => {
-        return old.map(r => r.id === tempId ? { ...r, _isSaving: false } : r);
+        return old.map(r => {
+          if (r.id !== tempId) return r;
+          return {
+            ...r,
+            id: result.createdId || r.id,
+            _isSaving: false,
+          };
+        });
       });
     } catch (error: any) {
       console.error('Failed to create record:', error);
@@ -271,6 +279,7 @@ function Home() {
   };
 
   const handleRecordClick = (record: Record) => {
+    setQuickParsed(null);
     setEditRecord(record);
     setShowDetailEntry(true);
   };
@@ -386,13 +395,16 @@ function Home() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">빠른 기록</h2>
             <button
-              onClick={() => setShowDetailEntry(true)}
+              onClick={() => {
+                setEditRecord(null);
+                setShowDetailEntry(true);
+              }}
               className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-all hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               상세 기록
             </button>
           </div>
-          <SmartEntry onSubmit={handleEntrySubmit} />
+          <SmartEntry onSubmit={handleEntrySubmit} onParsedChange={setQuickParsed} />
         </section>
 
         {/* Recent Records Section */}
@@ -493,7 +505,7 @@ function Home() {
                           </div>
                         </div>
                         <div className={`ml-4 text-right font-bold sm:text-base ${isSaving ? 'text-gray-400' : (record.amount > 0 ? 'text-green-600' : 'text-red-600')}`}>
-                          {record.amount > 0 ? '+' : ''}{record.amount.toLocaleString()}원
+                          {record.amount > 0 ? '+' : ''}{Math.abs(record.amount).toLocaleString()}원
                         </div>
                       </div>
                       );
@@ -533,6 +545,7 @@ function Home() {
       <DetailEntry
         isOpen={showDetailEntry}
         editRecord={editRecord}
+        initialParsed={editRecord ? null : quickParsed}
         onClose={handleModalClose}
         onSubmit={handleEntrySubmit}
         onUpdate={handleUpdate}

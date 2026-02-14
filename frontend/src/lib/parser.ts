@@ -64,5 +64,10 @@ export function parseSmartEntry(input: string): ParsedInput {
     result.category = '식비';
   }
 
+  // 금액만 입력된 빠른 지출은 기본 결제수단을 신용카드로 처리
+  if (tokens.length === 1 && result.amount < 0 && !result.method) {
+    result.method = '신용카드';
+  }
+
   return result;
 }

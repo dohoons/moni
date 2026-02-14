@@ -5,9 +5,10 @@ import type { ParsedInput } from '../lib/parser';
 
 interface SmartEntryProps {
   onSubmit: (parsed: ParsedInput) => void;
+  onParsedChange?: (parsed: ParsedInput | null) => void;
 }
 
-function SmartEntry({ onSubmit }: SmartEntryProps) {
+function SmartEntry({ onSubmit, onParsedChange }: SmartEntryProps) {
   const [input, setInput] = useState('');
   const [parsed, setParsed] = useState<ParsedInput | null>(null);
   const isSubmittingRef = useRef(false);
@@ -20,11 +21,14 @@ function SmartEntry({ onSubmit }: SmartEntryProps) {
       if (value.trim()) {
         const result = parseSmartEntry(value);
         setParsed(result);
+        onParsedChange?.(result);
       } else {
         setParsed(null);
+        onParsedChange?.(null);
       }
     } catch {
       setParsed(null);
+      onParsedChange?.(null);
     }
   };
 
@@ -34,6 +38,7 @@ function SmartEntry({ onSubmit }: SmartEntryProps) {
       onSubmit(parsed);
       setInput('');
       setParsed(null);
+      onParsedChange?.(null);
       // 다음 제출 가능하도록 약간의 지연 후 reset
       setTimeout(() => {
         isSubmittingRef.current = false;
@@ -64,6 +69,7 @@ function SmartEntry({ onSubmit }: SmartEntryProps) {
             onClick={() => {
               setInput('');
               setParsed(null);
+              onParsedChange?.(null);
             }}
             className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
           >

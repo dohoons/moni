@@ -19,13 +19,14 @@ export interface Record {
 interface DetailEntryProps {
   isOpen: boolean;
   editRecord: Record | null;
+  initialParsed?: ParsedInput | null;
   onClose: () => void;
   onSubmit: (parsed: ParsedInput) => void;
   onUpdate: (id: string, parsed: Partial<ParsedInput>, date: string) => void;
   onDelete: (id: string) => void;
 }
 
-function DetailEntry({ isOpen, editRecord, onClose, onSubmit, onUpdate, onDelete }: DetailEntryProps) {
+function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubmit, onUpdate, onDelete }: DetailEntryProps) {
   const [isIncome, setIsIncome] = useState(false);
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
@@ -45,16 +46,16 @@ function DetailEntry({ isOpen, editRecord, onClose, onSubmit, onUpdate, onDelete
       setMethod((editRecord.method as PaymentMethod) || '');
       setCategory(editRecord.category || '');
       setDate(editRecord.date);
-    } else {
+    } else if (isOpen) {
       // 새 기록 모드 - 초기화
-      setIsIncome(false);
-      setAmount('');
-      setMemo('');
-      setMethod('');
-      setCategory('');
+      setIsIncome((initialParsed?.amount ?? -1) > 0);
+      setAmount(initialParsed?.amount ? Math.abs(initialParsed.amount).toString() : '');
+      setMemo(initialParsed?.memo || '');
+      setMethod((initialParsed?.method as PaymentMethod) || '');
+      setCategory(initialParsed?.category || '');
       setDate(new Date().toISOString().split('T')[0]);
     }
-  }, [editRecord, isOpen]);
+  }, [editRecord, isOpen, initialParsed]);
 
   // 수입/지출 전환 시 카테고리 리셋
   useEffect(() => {
