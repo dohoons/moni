@@ -38,6 +38,7 @@ function Home() {
   const [showSyncQueueModal, setShowSyncQueueModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
+  const [bottomTriggerMargin, setBottomTriggerMargin] = useState(0);
   const [titleBarBottom, setTitleBarBottom] = useState(() => {
     return document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
   });
@@ -164,6 +165,35 @@ function Home() {
     }
   }, [loadingMore, hasMore, cursor, queryClient]);
 
+  const tryLoadMoreIfNeeded = useCallback(() => {
+    if (!observerTarget.current || loadingMore || !hasMore || !cursor) return;
+
+    const rect = observerTarget.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+
+    // iOS Safari/PWA에서 IntersectionObserver가 늦게 반응하는 경우를 대비한 폴백
+    if (rect.top <= viewportHeight + bottomTriggerMargin) {
+      void loadMore();
+    }
+  }, [loadingMore, hasMore, cursor, loadMore, bottomTriggerMargin]);
+
+  useEffect(() => {
+    // env(safe-area-inset-bottom)을 실제 px 값으로 측정
+    const probe = document.createElement('div');
+    probe.style.position = 'fixed';
+    probe.style.left = '0';
+    probe.style.bottom = '0';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    probe.style.paddingBottom = 'env(safe-area-inset-bottom)';
+
+    document.body.appendChild(probe);
+    const measured = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+    document.body.removeChild(probe);
+
+    setBottomTriggerMargin(Math.max(0, Math.round(measured)));
+  }, []);
+
   // Intersection Observer 설정
   useEffect(() => {
     if (!observerTarget.current) return;
@@ -171,10 +201,13 @@ function Home() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !loadingMore) {
-          loadMore();
+          void loadMore();
         }
       },
-      { threshold: 0.1 }
+      {
+        threshold: 0,
+        rootMargin: `0px 0px ${bottomTriggerMargin}px 0px`,
+      }
     );
 
     observer.observe(observerTarget.current);
@@ -184,7 +217,25 @@ function Home() {
         observer.unobserve(observerTarget.current);
       }
     };
-  }, [hasMore, loadingMore, loadMore]);
+  }, [hasMore, loadingMore, loadMore, bottomTriggerMargin]);
+
+  useEffect(() => {
+    const onScrollOrResize = () => {
+      tryLoadMoreIfNeeded();
+    };
+
+    window.addEventListener('scroll', onScrollOrResize, { passive: true });
+    window.addEventListener('resize', onScrollOrResize, { passive: true });
+    window.addEventListener('orientationchange', onScrollOrResize, { passive: true });
+
+    onScrollOrResize();
+
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize);
+      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('orientationchange', onScrollOrResize);
+    };
+  }, [tryLoadMoreIfNeeded]);
 
   useEffect(() => {
     const updateTitleBarBottom = () => {
