@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStats, transformCategoryData } from '../hooks/useStats';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceDot } from 'recharts';
@@ -95,18 +95,44 @@ function getCumulativeAtProgress(
 
 function Stats() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const now = new Date();
+  const defaultYear = now.getFullYear();
+  const defaultMonth = now.getMonth() + 1;
 
   const [activeTab, setActiveTab] = useState<TabType>('monthly');
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(() => {
+    const urlYear = Number(searchParams.get('year'));
+    return Number.isInteger(urlYear) && urlYear >= 2000 && urlYear <= 9999 ? urlYear : defaultYear;
+  });
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const urlMonth = Number(searchParams.get('month'));
+    return Number.isInteger(urlMonth) && urlMonth >= 1 && urlMonth <= 12 ? urlMonth : defaultMonth;
+  });
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
-  const [draftYear, setDraftYear] = useState(new Date().getFullYear());
-  const [draftMonth, setDraftMonth] = useState(new Date().getMonth() + 1);
+  const [draftYear, setDraftYear] = useState(defaultYear);
+  const [draftMonth, setDraftMonth] = useState(defaultMonth);
 
   const { data: stats, isPending, error } = useStats(selectedYear, selectedMonth);
 
+  useEffect(() => {
+    const currentYear = searchParams.get('year');
+    const currentMonth = searchParams.get('month');
+    const nextYear = String(selectedYear);
+    const nextMonth = String(selectedMonth);
+
+    if (currentYear === nextYear && currentMonth === nextMonth) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('year', nextYear);
+    nextParams.set('month', nextMonth);
+    setSearchParams(nextParams, { replace: true });
+  }, [selectedYear, selectedMonth, searchParams, setSearchParams]);
+
   // 연도 목록 생성 (최근 5년)
-  const currentYear = new Date().getFullYear();
+  const currentYear = defaultYear;
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
   // 월 목록
@@ -157,6 +183,21 @@ function Stats() {
     onClose: () => setIsMonthPickerOpen(false),
     enabled: isMonthPickerOpen,
   });
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMonthPickerOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMonthPickerOpen]);
 
   // 선택한 기간에 따른 데이터 계산
   const safeCurrentMonth = {

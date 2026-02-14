@@ -67,6 +67,21 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
     }
   }, [isIncome, category]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleFormSubmit = (e: FormEvent<HTMLFormElement>) => {
