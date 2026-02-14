@@ -4,12 +4,17 @@
  * 통계 계산
  */
 
+function getMonthRecords(records, year, month) {
+  const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
+  return records.filter(r => r.date.startsWith(monthPrefix));
+}
+
 /**
  * 일별 지출 계산 (누적)
  */
 function getDailyExpenses(records, year, month) {
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
-  const monthRecords = records.filter(r => r.date.startsWith(monthPrefix));
+  const monthRecords = getMonthRecords(records, year, month).filter(r => r.amount < 0);
 
   // 해당 월의 일수 계산
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -48,23 +53,19 @@ function getDailyExpenses(records, year, month) {
  * 월별 통계 계산
  */
 function getMonthStats(records, year, month) {
-  const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
+  const monthRecords = getMonthRecords(records, year, month);
+  const expenseRecords = monthRecords.filter(r => r.amount < 0);
 
-  const monthRecords = records.filter(r => r.date.startsWith(monthPrefix));
-
-  // 순저축(수입 - 지출)
+  // 순저축(수입 - 지출): 하위 호환용으로 유지
   const total = monthRecords.reduce((sum, r) => sum + r.amount, 0);
-  const expenseTotal = monthRecords
-    .filter(r => r.amount < 0)
+  const expenseTotal = expenseRecords
     .reduce((sum, r) => sum + Math.abs(r.amount), 0);
 
   const byCategory = {};
 
-  monthRecords.forEach(r => {
-    if (r.amount < 0) { // 지출만 집계
-      const cat = r.category || '미분류';
-      byCategory[cat] = (byCategory[cat] || 0) + Math.abs(r.amount);
-    }
+  expenseRecords.forEach(r => {
+    const cat = r.category || '미분류';
+    byCategory[cat] = (byCategory[cat] || 0) + Math.abs(r.amount);
   });
 
   return {
@@ -103,7 +104,7 @@ function getAllStats(year, month) {
 
   for (let m = 1; m <= month; m++) {
     const stats = getMonthStats(records, year, m);
-    yearSavings += stats.total;
+    yearSavings += stats.total; // 수입 포함 순저축(연도 탭에서 사용)
     yearExpense += stats.expenseTotal;
   }
 
