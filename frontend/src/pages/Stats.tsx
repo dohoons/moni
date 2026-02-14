@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStats, transformCategoryData } from '../hooks/useStats';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
+import { useDialogViewport } from '../hooks/useDialogViewport';
 import { PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceDot } from 'recharts';
 
 type TabType = 'monthly' | 'yearly';
@@ -112,6 +114,7 @@ function Stats() {
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   const [draftYear, setDraftYear] = useState(defaultYear);
   const [draftMonth, setDraftMonth] = useState(defaultMonth);
+  const { isMobile, keyboardInset } = useDialogViewport(isMonthPickerOpen);
 
   const { data: stats, isPending, error } = useStats(selectedYear, selectedMonth);
 
@@ -183,6 +186,12 @@ function Stats() {
     onClose: () => setIsMonthPickerOpen(false),
     enabled: isMonthPickerOpen,
   });
+
+  const monthPickerDialogStyle: CSSProperties = {
+    ...monthPickerStyle,
+    marginBottom: isMobile ? keyboardInset : undefined,
+    maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
+  };
 
   useEffect(() => {
     if (!isMonthPickerOpen) return;
@@ -382,14 +391,14 @@ function Stats() {
 
               {isMonthPickerOpen && (
                 <div
-                  className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 p-4 sm:items-center"
+                  className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
                   onClick={() => setIsMonthPickerOpen(false)}
                 >
                   <div
-                    className="w-full max-w-sm rounded-2xl bg-white shadow-xl"
+                    className="flex w-full max-w-sm max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl"
                     onClick={(e) => e.stopPropagation()}
                     ref={monthPickerRef}
-                    style={monthPickerStyle}
+                    style={monthPickerDialogStyle}
                     {...monthPickerPanelTouch}
                   >
                     <div className="flex justify-center px-5 pt-3 pb-1 sm:hidden">
@@ -398,7 +407,7 @@ function Stats() {
                     <div className="border-b border-gray-200 px-5 py-4">
                       <h3 className="text-base font-semibold text-gray-900">년월 선택</h3>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 p-5">
+                    <div className="grid min-h-0 flex-1 grid-cols-2 gap-4 overflow-y-auto p-5">
                       <div>
                         <div className="mb-2 text-xs font-semibold text-gray-500">년도</div>
                         <div className="h-48 overflow-y-auto rounded-lg border border-gray-200 p-1">
@@ -438,21 +447,23 @@ function Stats() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4">
+                    <div className="border-t border-gray-200 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 sm:py-4">
+                      <div className="flex gap-3">
                       <button
                         type="button"
                         onClick={() => setIsMonthPickerOpen(false)}
-                        className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                        className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                       >
                         취소
                       </button>
                       <button
                         type="button"
                         onClick={applyMonthPicker}
-                        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                        className="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                       >
                         적용
                       </button>
+                      </div>
                     </div>
                   </div>
                 </div>

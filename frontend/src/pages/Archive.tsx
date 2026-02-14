@@ -5,6 +5,7 @@ import { useSync } from '../hooks/useSync';
 import { api } from '../services/api';
 import { WEEKDAYS } from '../constants';
 import type { ParsedInput } from '../lib/parser';
+import { showAlert } from '../services/message-dialog';
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -190,7 +191,7 @@ function Archive() {
     try {
       const result = await updateRecord(id, { ...parsed, date });
       if (result.queued) {
-        alert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
+        await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
       if (!isDateInCurrentMonth(date, yearMonth)) {
@@ -203,7 +204,7 @@ function Archive() {
       );
     } catch (error: any) {
       console.error('Failed to update record:', error);
-      alert('기록 수정에 실패했습니다: ' + error.message);
+      await showAlert('기록 수정에 실패했습니다: ' + error.message);
       setRecords((old) =>
         old.map((record) =>
           record.id === id && record._original
@@ -225,13 +226,13 @@ function Archive() {
     try {
       const result = await deleteRecord(id);
       if (result.queued) {
-        alert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
+        await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
       setRecords((old) => old.filter((record) => record.id !== id));
     } catch (error: any) {
       console.error('Failed to delete record:', error);
-      alert('기록 삭제에 실패했습니다: ' + error.message);
+      await showAlert('기록 삭제에 실패했습니다: ' + error.message);
       setRecords((old) =>
         old.map((record) =>
           record.id === id && record._original

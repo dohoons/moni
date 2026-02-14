@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
+import type { CSSProperties } from 'react';
 import { api } from '../services/api';
 import { getPendingRecords, clearPendingRecords, removePendingRecordByIndex, getPendingRecordByIndex, removePendingRecord, updateLastSyncTime, isOnline } from '../services/sync';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
+import { useDialogViewport } from '../hooks/useDialogViewport';
+import { showAlert, showConfirm } from '../services/message-dialog';
 
 interface SyncQueueModalProps {
   isOpen: boolean;
@@ -19,6 +22,7 @@ interface SyncQueueModalProps {
 function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalProps) {
   const [records, setRecords] = useState(getPendingRecords());
   const [syncingIndex, setSyncingIndex] = useState<number | null>(null);
+  const { isMobile, keyboardInset } = useDialogViewport(isOpen);
   const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   // 모달이 열릴 때마다 레코드 새로고침
@@ -50,7 +54,7 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
   // 개별 동기화
   const handleSyncOne = async (index: number) => {
     if (!isOnline()) {
-      alert('오프라인 상태입니다. 네트워크 연결을 확인해주세요.');
+      await showAlert('오프라인 상태입니다. 네트워크 연결을 확인해주세요.');
       return;
     }
 
@@ -87,7 +91,7 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
       onRecordsUpdated?.();
     } catch (error: any) {
       console.error('Failed to sync record:', error);
-      alert(`동기화 실패: ${error.message || '알 수 없는 오류'}`);
+      await showAlert(`동기화 실패: ${error.message || '알 수 없는 오류'}`);
     } finally {
       setSyncingIndex(null);
     }
@@ -99,8 +103,14 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
     onRecordsUpdated?.();
   };
 
-  const handleClearAll = () => {
-    if (confirm('모든 대기 작업을 취소하시겠습니까?')) {
+  const handleClearAll = async () => {
+    if (
+      await showConfirm('모든 대기 작업을 취소하시겠습니까?', {
+        primaryLabel: '전체 취소',
+        secondaryLabel: '닫기',
+        tone: 'danger',
+      })
+    ) {
       clearPendingRecords();
       refreshRecords();
       onRecordsUpdated?.();
@@ -108,6 +118,12 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
   };
 
   if (!isOpen) return null;
+
+  const dialogStyle: CSSProperties = {
+    ...panelStyle,
+    marginBottom: isMobile ? keyboardInset : undefined,
+    maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
+  };
 
   const getActionLabel = (action?: string) => {
     switch (action) {
@@ -264,14 +280,14 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-white shadow-xl"
+        className="flex w-full max-w-md max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
         ref={panelRef}
-        style={panelStyle}
+        style={dialogStyle}
         {...panelTouch}
       >
         <div className="flex justify-center px-6 pt-3 pb-1 sm:hidden">
@@ -293,7 +309,7 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
         </div>
 
         {/* Content */}
-        <div className="px-6 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
           {records.length === 0 ? (
             <div className="py-8 text-center text-sm text-gray-500">
               대기 중인 작업이 없습니다.
@@ -347,7 +363,7 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
 
         {/* Footer */}
         {records.length > 0 && (
-          <div className="border-t border-gray-200 px-6 py-4">
+          <div className="border-t border-gray-200 px-6 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 sm:py-4">
             <button
               onClick={handleClearAll}
               className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-100"

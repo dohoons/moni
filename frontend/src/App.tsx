@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Stats from './pages/Stats';
 import Archive from './pages/Archive';
+import MessageDialogProvider from './components/MessageDialogProvider';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,7 +44,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Router basename="/moni">
         <AuthProvider>
-          <AppContent />
+          <MessageDialogProvider>
+            <AppContent />
+          </MessageDialogProvider>
         </AuthProvider>
       </Router>
     </QueryClientProvider>

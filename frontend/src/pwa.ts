@@ -1,11 +1,14 @@
 // @ts-expect-error virtual module
 import { registerSW } from 'virtual:pwa-register'
+import { showConfirm } from './services/message-dialog'
 
 const updateSW = registerSW({
   onNeedRefresh() {
-    if (confirm('새 버전이 있습니다. 업데이트하시겠습니까?')) {
-      updateSW(true)
-    }
+    void (async () => {
+      if (await showConfirm('새 버전이 있습니다. 업데이트하시겠습니까?')) {
+        updateSW(true)
+      }
+    })()
   },
   onOfflineReady() {
     console.log('앱이 오프라인에서 작동할 준비가 되었습니다.')

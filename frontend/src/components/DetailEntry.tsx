@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import type { ChangeEvent, CSSProperties, FormEvent } from 'react';
 import { type ParsedInput } from '../lib/parser';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../constants';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
+import { useDialogViewport } from '../hooks/useDialogViewport';
+import { showAlert, showConfirm } from '../services/message-dialog';
 
 type PaymentMethod = '신용카드' | '체크카드' | '현금' | '계좌이체';
 
@@ -33,6 +35,7 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
   const [method, setMethod] = useState<PaymentMethod | ''>('');
   const [category, setCategory] = useState('');
   const [date, setDate] = useState('');
+  const { isMobile, keyboardInset } = useDialogViewport(isOpen);
   const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   const isEditMode = editRecord !== null;
@@ -82,17 +85,47 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
     };
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    if (!isOpen || !isMobile) return;
+
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        window.setTimeout(() => {
+          target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 140);
+      }
+    };
+
+    window.addEventListener('focusin', handleFocusIn);
+    return () => {
+      window.removeEventListener('focusin', handleFocusIn);
+    };
+  }, [isOpen, isMobile]);
+
   if (!isOpen) return null;
+
+  const dialogStyle: CSSProperties = {
+    ...panelStyle,
+    marginBottom: isMobile ? keyboardInset : undefined,
+    maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
+  };
 
   const handleFormSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    handleSubmit();
+    void handleSubmit();
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const numAmount = parseInt(amount) || 0;
     if (numAmount === 0) {
-      alert('금액을 입력해주세요.');
+      await showAlert('금액을 입력해주세요.');
       return;
     }
 
@@ -119,9 +152,15 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (isEditMode && editRecord) {
-      if (confirm('정말 삭제하시겠습니까?')) {
+      if (
+        await showConfirm('정말 삭제하시겠습니까?', {
+          primaryLabel: '삭제',
+          secondaryLabel: '취소',
+          tone: 'danger',
+        })
+      ) {
         onDelete(editRecord.id);
       }
     }
@@ -129,14 +168,14 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
-        className="flex w-full max-w-md max-h-[calc(100vh-2rem)] flex-col rounded-2xl bg-white shadow-xl"
+        className="flex w-full max-w-md max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
         ref={panelRef}
-        style={panelStyle}
+        style={dialogStyle}
         {...panelTouch}
       >
         <div className="flex justify-center px-6 pt-3 pb-1 sm:hidden">
@@ -147,14 +186,15 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
           <h3 className="text-lg font-semibold text-gray-900">
             {isEditMode ? '기록 수정' : '상세 기록'}
           </h3>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-          >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {isEditMode && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            >
+              삭제
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleFormSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -289,16 +329,7 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
           </div>
 
           {/* Footer */}
-          <div className="flex flex-shrink-0 gap-3 border-t border-gray-200 px-6 py-4">
-            {isEditMode && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 font-medium text-red-700 transition-all hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-              >
-                삭제
-              </button>
-            )}
+          <div className="flex flex-shrink-0 gap-3 border-t border-gray-200 px-6 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 sm:py-4">
             <div className="flex flex-1 gap-3">
               <button
                 type="button"

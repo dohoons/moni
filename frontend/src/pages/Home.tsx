@@ -10,6 +10,7 @@ import SyncIndicator from '../components/SyncIndicator';
 import SyncQueueModal from '../components/SyncQueueModal';
 import type { ParsedInput } from '../lib/parser';
 import { WEEKDAYS } from '../constants';
+import { showAlert, showConfirm } from '../services/message-dialog';
 
 // 날짜 포맷 함수 (1월 15일 같은 형식)
 const formatDate = (dateString: string) => {
@@ -186,18 +187,18 @@ function Home() {
     try {
       const response = await api.setup();
       if (response.success) {
-        alert('Google 시트가 생성되었습니다!');
+        await showAlert('Google 시트가 생성되었습니다!');
         setSetupRequired(false);
         await loadRecords();
       }
     } catch (error: any) {
       console.error('Setup failed:', error);
-      alert('설정에 실패했습니다: ' + error.message);
+      await showAlert('설정에 실패했습니다: ' + error.message);
     }
   };
 
-  const handleLogout = () => {
-    if (!confirm('로그아웃하시겠습니까?')) {
+  const handleLogout = async () => {
+    if (!(await showConfirm('로그아웃하시겠습니까?'))) {
       return;
     }
     logout();
@@ -283,7 +284,7 @@ function Home() {
       const result = await createRecord(parsed, tempId);
 
       if (result.queued) {
-        alert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
+        await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
       // 온라인 저장 시 임시 ID를 실제 ID로 즉시 교체 (수정 시 Record not found 방지)
@@ -299,7 +300,7 @@ function Home() {
       });
     } catch (error: any) {
       console.error('Failed to create record:', error);
-      alert('기록 저장에 실패했습니다: ' + error.message);
+      await showAlert('기록 저장에 실패했습니다: ' + error.message);
       // 실패 시 목록에서 제거
       queryClient.setQueryData(['records'], (old: Record[] = []) => {
         return old.filter(r => r.id !== tempId);
@@ -341,7 +342,7 @@ function Home() {
       const result = await updateRecord(id, { ...parsed, date });
 
       if (result.queued) {
-        alert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
+        await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
       // 저장 완료 후 로딩 상태 제거
@@ -351,7 +352,7 @@ function Home() {
       restoreScrollAnchor();
     } catch (error: any) {
       console.error('Failed to update record:', error);
-      alert('기록 수정에 실패했습니다: ' + error.message);
+      await showAlert('기록 수정에 실패했습니다: ' + error.message);
       // 실패 시 롤백
       queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
         return old.map(r => r._original && r.id === id ? r._original : r);
@@ -374,7 +375,7 @@ function Home() {
       const result = await deleteRecord(id);
 
       if (result.queued) {
-        alert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
+        await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
       // 성공 시 목록에서 완전히 제거
@@ -383,7 +384,7 @@ function Home() {
       });
     } catch (error: any) {
       console.error('Failed to delete record:', error);
-      alert('기록 삭제에 실패했습니다: ' + error.message);
+      await showAlert('기록 삭제에 실패했습니다: ' + error.message);
       // 실패 시 롤백
       queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
         return old.map(r => r._original && r.id === id ? { ...r._original, _isSaving: false } : r);
