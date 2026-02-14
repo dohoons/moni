@@ -116,9 +116,8 @@ export function useSync(): UseSyncResult {
       }
     },
     onSuccess: () => {
-      // 캐시 무효화
+      // 통계만 갱신 (records는 화면 낙관적 업데이트 상태 유지)
       queryClient.invalidateQueries({ queryKey: ['stats'] });
-      queryClient.invalidateQueries({ queryKey: ['records'] });
     },
   });
 
@@ -143,7 +142,6 @@ export function useSync(): UseSyncResult {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stats'] });
-      queryClient.invalidateQueries({ queryKey: ['records'] });
     },
   });
 
@@ -175,7 +173,6 @@ export function useSync(): UseSyncResult {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stats'] });
-      queryClient.invalidateQueries({ queryKey: ['records'] });
     },
   });
 

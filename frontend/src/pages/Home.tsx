@@ -20,7 +20,7 @@ const formatDate = (dateString: string) => {
   return `${month}월 ${day}일 (${weekday})`;
 };
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 40;
 
 function Home() {
   const navigate = useNavigate();
@@ -34,11 +34,65 @@ function Home() {
   const [editRecord, setEditRecord] = useState<Record | null>(null);
   const [quickParsed, setQuickParsed] = useState<ParsedInput | null>(null);
   const [showSyncQueueModal, setShowSyncQueueModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const scrollAnchorRef = useRef<{ id: string; top: number } | null>(null);
+  const pullStartYRef = useRef<number | null>(null);
+  const isPullingRef = useRef(false);
 
   // Intersection Observer용 ref
   const observerTarget = useRef<HTMLDivElement>(null);
 
   const { createRecord, updateRecord, deleteRecord, isOnline, pendingCount } = useSync();
+
+  const findRecordElementById = useCallback((id: string): HTMLElement | null => {
+    const elements = document.querySelectorAll<HTMLElement>('[data-record-id]');
+    for (const element of elements) {
+      if (element.dataset.recordId === id) {
+        return element;
+      }
+    }
+    return null;
+  }, []);
+
+  const captureScrollAnchor = useCallback(() => {
+    const headerBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0;
+    const elements = document.querySelectorAll<HTMLElement>('[data-record-id]');
+
+    for (const element of elements) {
+      const rect = element.getBoundingClientRect();
+      if (rect.bottom > headerBottom + 8 && rect.top < window.innerHeight) {
+        const id = element.dataset.recordId;
+        if (id) {
+          scrollAnchorRef.current = { id, top: rect.top };
+        }
+        return;
+      }
+    }
+  }, []);
+
+  const restoreScrollAnchor = useCallback(() => {
+    const anchor = scrollAnchorRef.current;
+    if (!anchor) return;
+
+    const restore = () => {
+      const target = findRecordElementById(anchor.id);
+      if (!target) return;
+      const currentTop = target.getBoundingClientRect().top;
+      const delta = currentTop - anchor.top;
+      if (Math.abs(delta) > 1) {
+        window.scrollBy({ top: delta });
+      }
+    };
+
+    requestAnimationFrame(() => {
+      restore();
+      requestAnimationFrame(() => {
+        restore();
+        scrollAnchorRef.current = null;
+      });
+    });
+  }, [findRecordElementById]);
 
   // Records Query - React Query로 캐싱
   const {
@@ -142,9 +196,59 @@ function Home() {
   };
 
   const handleLogout = () => {
+    if (!confirm('로그아웃하시겠습니까?')) {
+      return;
+    }
     logout();
     navigate('/login', { replace: true });
   };
+
+  const handleManualRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+    try {
+      await loadRecords();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, loadRecords]);
+
+  const handleMainTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
+    if (window.scrollY > 2 || isRefreshing) return;
+    if (e.touches.length !== 1) return;
+
+    pullStartYRef.current = e.touches[0].clientY;
+    isPullingRef.current = false;
+  }, [isRefreshing]);
+
+  const handleMainTouchMove = useCallback((e: React.TouchEvent<HTMLElement>) => {
+    if (pullStartYRef.current === null) return;
+    if (window.scrollY > 2) return;
+
+    const deltaY = e.touches[0].clientY - pullStartYRef.current;
+    if (deltaY <= 0) return;
+
+    isPullingRef.current = true;
+    const nextDistance = Math.min(96, deltaY * 0.45);
+    setPullDistance(nextDistance);
+
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+  }, []);
+
+  const handleMainTouchEnd = useCallback(() => {
+    const shouldRefresh = isPullingRef.current && pullDistance >= 56;
+
+    pullStartYRef.current = null;
+    isPullingRef.current = false;
+    setPullDistance(0);
+
+    if (shouldRefresh) {
+      void handleManualRefresh();
+    }
+  }, [pullDistance, handleManualRefresh]);
 
   const handleEntrySubmit = async (parsed: ParsedInput) => {
     // 즉시 다이얼로그 닫기
@@ -199,6 +303,8 @@ function Home() {
   };
 
   const handleUpdate = async (id: string, parsed: Partial<ParsedInput>, date: string) => {
+    captureScrollAnchor();
+
     // 즉시 다이얼로그 닫기
     setShowDetailEntry(false);
     setEditRecord(null);
@@ -237,6 +343,7 @@ function Home() {
       queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
         return old.map(r => r.id === id ? { ...r, _isSaving: false, _original: undefined } : r);
       });
+      restoreScrollAnchor();
     } catch (error: any) {
       console.error('Failed to update record:', error);
       alert('기록 수정에 실패했습니다: ' + error.message);
@@ -244,6 +351,7 @@ function Home() {
       queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
         return old.map(r => r._original && r.id === id ? r._original : r);
       });
+      restoreScrollAnchor();
     }
   };
 
@@ -371,6 +479,16 @@ function Home() {
                 </svg>
               </button>
               <button
+                onClick={() => void handleManualRefresh()}
+                disabled={isRefreshing}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
+              >
+                <span className="hidden sm:inline">{isRefreshing ? '새로고침 중' : '새로고침'}</span>
+                <svg className={`h-5 w-5 sm:hidden ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+              <button
                 onClick={handleLogout}
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:px-4"
               >
@@ -385,7 +503,24 @@ function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-2xl px-4 safe-area-header pb-6 sm:px-6">
+      <main
+        className="mx-auto max-w-2xl px-4 safe-area-header pb-6 sm:px-6"
+        onTouchStart={handleMainTouchStart}
+        onTouchMove={handleMainTouchMove}
+        onTouchEnd={handleMainTouchEnd}
+        onTouchCancel={handleMainTouchEnd}
+      >
+        {(pullDistance > 0 || isRefreshing) && (
+          <div className="mb-3 flex justify-center">
+            <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm">
+              {isRefreshing
+                ? '새로고침 중...'
+                : pullDistance >= 56
+                  ? '손을 놓으면 새로고침'
+                  : '아래로 당겨서 새로고침'}
+            </div>
+          </div>
+        )}
         {pendingCount > 0 && (
           <SyncIndicator onRecordsUpdated={loadRecords} onQueueOpen={() => setShowSyncQueueModal(true)} />
         )}
@@ -445,7 +580,7 @@ function Home() {
                 <p className="text-sm text-gray-500">기록을 불러오는데 실패했습니다.</p>
                 <p className="mt-1 text-xs text-gray-400">{error.message}</p>
                 <button
-                  onClick={() => loadRecords()}
+                  onClick={() => void handleManualRefresh()}
                   className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
                   다시 시도
@@ -477,6 +612,7 @@ function Home() {
                       return (
                         <div
                           key={record.id}
+                          data-record-id={record.id}
                           onClick={() => !isSaving && handleRecordClick(record)}
                           className={`flex items-center justify-between rounded-xl bg-white p-4 shadow-sm transition-all sm:p-4 ${
                             isSaving ? 'cursor-default opacity-75' : 'cursor-pointer hover:shadow-md'
