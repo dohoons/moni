@@ -17,7 +17,7 @@ interface UseSyncResult {
   pendingCount: number;
   isSyncing: boolean;
   syncNow: () => Promise<void>;
-  createRecord: (data: ParsedInput, tempId?: string) => Promise<{ queued?: boolean; tempId?: string; createdId?: string }>;
+  createRecord: (data: ParsedInput & { date?: string }, tempId?: string) => Promise<{ queued?: boolean; tempId?: string; createdId?: string }>;
   updateRecord: (id: string, data: Partial<ParsedInput> & { date?: string }) => Promise<{ queued?: boolean }>;
   deleteRecord: (id: string) => Promise<{ queued?: boolean }>;
 }
@@ -92,8 +92,8 @@ export function useSync(): UseSyncResult {
 
   // createRecord Mutation
   const createRecordMutation = useMutation({
-    mutationFn: async (data: ParsedInput & { tempId: string }) => {
-      const date = new Date().toISOString().split('T')[0];
+    mutationFn: async (data: ParsedInput & { tempId: string; date?: string }) => {
+      const date = data.date || new Date().toISOString().split('T')[0];
 
       if (isOnline()) {
         const response = await api.createRecord({
@@ -198,7 +198,7 @@ export function useSync(): UseSyncResult {
 
   // 래퍼 함수 (Mutation 호출)
   const createRecord = useCallback(
-    async (data: ParsedInput, tempId?: string) => {
+    async (data: ParsedInput & { date?: string }, tempId?: string) => {
       const effectiveTempId = tempId || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       return createRecordMutation.mutateAsync({ ...data, tempId: effectiveTempId });
     },

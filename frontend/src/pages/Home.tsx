@@ -2,12 +2,13 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
-import { useSync } from '../hooks/useSync';
+import { useRecordsController } from '../hooks/useRecordsController';
 import { useAuth } from '../contexts/AuthContext';
 import SmartEntry from '../components/SmartEntry';
 import DetailEntry, { type Record } from '../components/DetailEntry';
 import SyncIndicator from '../components/SyncIndicator';
 import SyncQueueModal from '../components/SyncQueueModal';
+import ChangeHistoryModal from '../components/ChangeHistoryModal';
 import type { ParsedInput } from '../lib/parser';
 import { WEEKDAYS } from '../constants';
 import { showAlert, showConfirm } from '../services/message-dialog';
@@ -36,6 +37,7 @@ function Home() {
   const [quickParsed, setQuickParsed] = useState<ParsedInput | null>(null);
   const [quickEntryResetSignal, setQuickEntryResetSignal] = useState(0);
   const [showSyncQueueModal, setShowSyncQueueModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [bottomTriggerMargin, setBottomTriggerMargin] = useState(0);
@@ -49,7 +51,15 @@ function Home() {
   // Intersection Observer용 ref
   const observerTarget = useRef<HTMLDivElement>(null);
 
-  const { createRecord, updateRecord, deleteRecord, isOnline, pendingCount } = useSync();
+  const {
+    createRecord,
+    updateRecord,
+    deleteRecord,
+    restoreHistory,
+    toSnapshot,
+    isOnline,
+    pendingCount,
+  } = useRecordsController();
 
   const findRecordElementById = useCallback((id: string): HTMLElement | null => {
     const elements = document.querySelectorAll<HTMLElement>('[data-record-id]');
@@ -350,7 +360,12 @@ function Home() {
     });
 
     try {
-      const result = await createRecord(parsed, tempId);
+      const result = await createRecord({
+        parsed,
+        date,
+        tempId,
+        historyAfterSnapshot: toSnapshot(optimisticRecord),
+      });
 
       if (result.queued) {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
@@ -379,6 +394,9 @@ function Home() {
 
   const handleUpdate = async (id: string, parsed: Partial<ParsedInput>, date: string) => {
     captureScrollAnchor();
+    const currentRecords = queryClient.getQueryData(['records']) as (Record & { updated?: string })[] | undefined;
+    const targetRecord = currentRecords?.find((record) => record.id === id);
+    const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
 
     // 즉시 다이얼로그 닫기
     setShowDetailEntry(false);
@@ -408,7 +426,7 @@ function Home() {
     });
 
     try {
-      const result = await updateRecord(id, { ...parsed, date });
+      const result = await updateRecord(id, parsed, date, beforeSnapshot);
 
       if (result.queued) {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
@@ -431,6 +449,10 @@ function Home() {
   };
 
   const handleDelete = async (id: string) => {
+    const currentRecords = queryClient.getQueryData(['records']) as (Record & { updated?: string })[] | undefined;
+    const targetRecord = currentRecords?.find((record) => record.id === id);
+    const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
+
     // 즉시 다이얼로그 닫기
     setShowDetailEntry(false);
     setEditRecord(null);
@@ -441,7 +463,7 @@ function Home() {
     });
 
     try {
-      const result = await deleteRecord(id);
+      const result = await deleteRecord(id, beforeSnapshot);
 
       if (result.queued) {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
@@ -546,6 +568,15 @@ function Home() {
                 <span className="hidden sm:inline">통계</span>
                 <svg className="h-5 w-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setShowHistoryModal(true)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:px-4"
+              >
+                <span className="hidden sm:inline">이력</span>
+                <svg className="h-5 w-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l2.5 2.5m6.5-2.5a9 9 0 11-3.2-6.9" />
                 </svg>
               </button>
               <button
@@ -778,6 +809,12 @@ function Home() {
         isOpen={showSyncQueueModal}
         onClose={() => setShowSyncQueueModal(false)}
         onRecordsUpdated={loadRecords}
+      />
+
+      <ChangeHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        onRestore={(entry) => restoreHistory(entry, { onRestored: async () => { await loadRecords(); } })}
       />
     </div>
   );

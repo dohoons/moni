@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import DetailEntry, { type Record as TransactionRecord } from '../components/DetailEntry';
-import { useSync } from '../hooks/useSync';
+import ChangeHistoryModal from '../components/ChangeHistoryModal';
+import { useRecordsController } from '../hooks/useRecordsController';
 import { api } from '../services/api';
 import { WEEKDAYS } from '../constants';
 import type { ParsedInput } from '../lib/parser';
@@ -48,7 +49,12 @@ const MONTH_FETCH_LIMIT = 99999;
 function Archive() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { updateRecord, deleteRecord } = useSync();
+  const {
+    updateRecord,
+    deleteRecord,
+    restoreHistory,
+    toSnapshot,
+  } = useRecordsController();
   const [yearMonth, setYearMonth] = useState(() => {
     const current = getCurrentYearMonth();
     const urlYear = Number(searchParams.get('year'));
@@ -62,6 +68,7 @@ function Archive() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDetailEntry, setShowDetailEntry] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [editRecord, setEditRecord] = useState<TransactionRecord | null>(null);
   const [pullDistance, setPullDistance] = useState(0);
   const monthSummaryRef = useRef<HTMLDivElement>(null);
@@ -203,6 +210,9 @@ function Archive() {
   }, [records]);
 
   const handleUpdate = async (id: string, parsed: Partial<ParsedInput>, date: string) => {
+    const targetRecord = records.find((record) => record.id === id);
+    const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
+
     setShowDetailEntry(false);
     setEditRecord(null);
 
@@ -227,7 +237,7 @@ function Archive() {
     );
 
     try {
-      const result = await updateRecord(id, { ...parsed, date });
+      const result = await updateRecord(id, parsed, date, beforeSnapshot);
       if (result.queued) {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
@@ -254,6 +264,9 @@ function Archive() {
   };
 
   const handleDelete = async (id: string) => {
+    const targetRecord = records.find((record) => record.id === id);
+    const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
+
     setShowDetailEntry(false);
     setEditRecord(null);
 
@@ -262,7 +275,7 @@ function Archive() {
     );
 
     try {
-      const result = await deleteRecord(id);
+      const result = await deleteRecord(id, beforeSnapshot);
       if (result.queued) {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
@@ -337,6 +350,15 @@ function Archive() {
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">월별 보기</h1>
             <div className="flex gap-2">
+              <button
+                onClick={() => setShowHistoryModal(true)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                <span className="hidden sm:inline">이력</span>
+                <svg className="h-5 w-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l2.5 2.5m6.5-2.5a9 9 0 11-3.2-6.9" />
+                </svg>
+              </button>
               <button
                 onClick={() => navigate('/')}
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -549,6 +571,12 @@ function Archive() {
         onSubmit={() => undefined}
         onUpdate={handleUpdate}
         onDelete={handleDelete}
+      />
+
+      <ChangeHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        onRestore={(entry) => restoreHistory(entry, { onRestored: () => loadRecords(true) })}
       />
     </div>
   );
