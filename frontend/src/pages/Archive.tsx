@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import type { CSSProperties } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import DetailEntry, { type Record as TransactionRecord } from '../components/DetailEntry';
 import ChangeHistoryModal from '../components/ChangeHistoryModal';
 import { useRecordsController } from '../hooks/useRecordsController';
+import { usePullDownToClose } from '../hooks/usePullDownToClose';
+import { useDialogViewport } from '../hooks/useDialogViewport';
 import { api } from '../services/api';
 import { WEEKDAYS } from '../constants';
 import type { ParsedInput } from '../lib/parser';
 import { showAlert } from '../services/message-dialog';
+import ModalShell from '../components/ModalShell';
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -49,6 +53,8 @@ const MONTH_FETCH_LIMIT = 99999;
 function Archive() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const now = new Date();
+  const defaultYear = now.getFullYear();
   const {
     updateRecord,
     deleteRecord,
@@ -70,6 +76,10 @@ function Archive() {
   const [showDetailEntry, setShowDetailEntry] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [editRecord, setEditRecord] = useState<TransactionRecord | null>(null);
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [draftYear, setDraftYear] = useState(yearMonth.year);
+  const [draftMonth, setDraftMonth] = useState(yearMonth.month);
+  const { isMobile, keyboardInset } = useDialogViewport(isMonthPickerOpen);
   const [pullDistance, setPullDistance] = useState(0);
   const monthSummaryRef = useRef<HTMLDivElement>(null);
   const [stickyOffsets, setStickyOffsets] = useState(() => {
@@ -204,6 +214,54 @@ function Archive() {
       return { year: newYear, month: newMonth };
     });
   };
+  const openMonthPicker = () => {
+    setDraftYear(yearMonth.year);
+    setDraftMonth(yearMonth.month);
+    setIsMonthPickerOpen(true);
+  };
+
+  const applyMonthPicker = () => {
+    setYearMonth({ year: draftYear, month: draftMonth });
+    setIsMonthPickerOpen(false);
+  };
+
+  const years = useMemo(() => {
+    const recentYears = Array.from({ length: 7 }, (_, i) => defaultYear - i);
+    if (recentYears.includes(yearMonth.year)) {
+      return recentYears;
+    }
+    return [...recentYears, yearMonth.year].sort((a, b) => b - a);
+  }, [defaultYear, yearMonth.year]);
+
+  const months = useMemo(() => Array.from({ length: 12 }, (_, i) => i + 1), []);
+  const {
+    panelRef: monthPickerRef,
+    panelStyle: monthPickerStyle,
+    panelTouch: monthPickerPanelTouch,
+  } = usePullDownToClose({
+    onClose: () => setIsMonthPickerOpen(false),
+    enabled: isMonthPickerOpen,
+  });
+  const monthPickerDialogStyle: CSSProperties = {
+    ...monthPickerStyle,
+    marginBottom: isMobile ? keyboardInset : undefined,
+    maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
+  };
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMonthPickerOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMonthPickerOpen]);
 
   const monthlyTotal = useMemo(() => {
     return records.reduce((sum, record) => sum + record.amount, 0);
@@ -403,14 +461,21 @@ function Archive() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {yearMonth.year}년 {yearMonth.month}월
-              </h2>
+            <button
+              type="button"
+              onClick={openMonthPicker}
+              className="rounded-lg px-4 py-1.5 text-center transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              <div className="flex items-center justify-center gap-2">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {yearMonth.year}년 {yearMonth.month}월
+                </h2>
+                <span className="mt-1 text-xs text-gray-500" aria-hidden="true">▼</span>
+              </div>
               <p className={`mt-1 text-sm font-medium ${monthlyTotal >= 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
                 {monthlyTotal >= 0 ? '+' : ''}{monthlyTotal.toLocaleString()}원
               </p>
-            </div>
+            </button>
             <button
               onClick={handleNextMonth}
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -421,6 +486,81 @@ function Archive() {
             </button>
           </div>
         </div>
+
+        <ModalShell
+          open={isMonthPickerOpen}
+          onBackdropClick={() => setIsMonthPickerOpen(false)}
+          overlayClassName="fixed inset-0 z-30 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
+          panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-sm sm:rounded-2xl"
+          panelRef={monthPickerRef}
+          panelStyle={monthPickerDialogStyle}
+          panelProps={monthPickerPanelTouch}
+        >
+          <div className="flex justify-center px-5 pb-1 pt-3 sm:hidden">
+            <div className="h-1.5 w-10 rounded-full bg-gray-300" />
+          </div>
+          <div className="border-b border-gray-200 px-5 py-4">
+            <h3 className="text-base font-semibold text-gray-900">년월 선택</h3>
+          </div>
+          <div className="grid min-h-0 flex-1 grid-cols-2 gap-4 overflow-y-auto p-5">
+            <div>
+              <div className="mb-2 text-xs font-semibold text-gray-500">년도</div>
+              <div className="h-48 overflow-y-auto rounded-lg border border-gray-200 p-1">
+                {years.map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={() => setDraftYear(year)}
+                    className={`mb-1 w-full rounded-md px-3 py-2 text-sm ${
+                      draftYear === year
+                        ? 'bg-blue-600 font-semibold text-white'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {year}년
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-2 text-xs font-semibold text-gray-500">월</div>
+              <div className="h-48 overflow-y-auto rounded-lg border border-gray-200 p-1">
+                {months.map((month) => (
+                  <button
+                    key={month}
+                    type="button"
+                    onClick={() => setDraftMonth(month)}
+                    className={`mb-1 w-full rounded-md px-3 py-2 text-sm ${
+                      draftMonth === month
+                        ? 'bg-blue-600 font-semibold text-white'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {month}월
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-gray-200 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:py-4">
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsMonthPickerOpen(false)}
+                className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={applyMonthPicker}
+                className="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                적용
+              </button>
+            </div>
+          </div>
+        </ModalShell>
 
         {loading ? (
           <div className="space-y-6">
