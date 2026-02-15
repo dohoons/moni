@@ -51,6 +51,7 @@ const isDateInCurrentMonth = (date: string, yearMonth: { year: number; month: nu
 
 const MONTH_FETCH_LIMIT = 99999;
 const STICKY_TITLEBAR_GAP = 8;
+type RefreshSource = 'pull' | 'manual';
 
 function Archive() {
   const navigate = useNavigate();
@@ -74,6 +75,7 @@ function Archive() {
   const [records, setRecords] = useState<ArchiveRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshSource, setRefreshSource] = useState<RefreshSource | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showDetailEntry, setShowDetailEntry] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -176,9 +178,14 @@ function Archive() {
     };
   }, [yearMonth.year, yearMonth.month, records.length]);
 
-  const handleManualRefresh = useCallback(async () => {
+  const handleManualRefresh = useCallback(async (source: RefreshSource = 'manual') => {
     if (isRefreshing || loading) return;
-    await loadRecords(true);
+    setRefreshSource(source);
+    try {
+      await loadRecords(true);
+    } finally {
+      setRefreshSource(null);
+    }
   }, [isRefreshing, loading, loadRecords]);
 
   const groupedRecords = useMemo(() => {
@@ -398,7 +405,7 @@ function Archive() {
     setPullDistance(0);
 
     if (shouldRefresh) {
-      void handleManualRefresh();
+      void handleManualRefresh('pull');
     }
   }, [pullDistance, handleManualRefresh]);
 
@@ -439,7 +446,7 @@ function Archive() {
         onTouchEnd={handleMainTouchEnd}
         onTouchCancel={handleMainTouchEnd}
       >
-        {(pullDistance > 0 || isRefreshing) && (
+        {(pullDistance > 0 || (isRefreshing && refreshSource === 'pull')) && (
           <div className="mb-3 flex justify-center">
             <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm">
               {isRefreshing

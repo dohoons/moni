@@ -24,6 +24,7 @@ const formatDate = (dateString: string) => {
 };
 
 const PAGE_SIZE = 40;
+type RefreshSource = 'pull' | 'manual';
 
 function Home() {
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ function Home() {
   const [showSyncQueueModal, setShowSyncQueueModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshSource, setRefreshSource] = useState<RefreshSource | null>(null);
   const [pullDistance, setPullDistance] = useState(0);
   const [bottomTriggerMargin, setBottomTriggerMargin] = useState(0);
   const [titleBarBottom, setTitleBarBottom] = useState(() => {
@@ -285,14 +287,16 @@ function Home() {
     navigate('/login', { replace: true });
   };
 
-  const handleManualRefresh = useCallback(async () => {
+  const handleManualRefresh = useCallback(async (source: RefreshSource = 'manual') => {
     if (isRefreshing) return;
 
+    setRefreshSource(source);
     setIsRefreshing(true);
     try {
       await loadRecords();
     } finally {
       setIsRefreshing(false);
+      setRefreshSource(null);
     }
   }, [isRefreshing, loadRecords]);
 
@@ -328,7 +332,7 @@ function Home() {
     setPullDistance(0);
 
     if (shouldRefresh) {
-      void handleManualRefresh();
+      void handleManualRefresh('pull');
     }
   }, [pullDistance, handleManualRefresh]);
 
@@ -602,7 +606,7 @@ function Home() {
         onTouchEnd={handleMainTouchEnd}
         onTouchCancel={handleMainTouchEnd}
       >
-        {(pullDistance > 0 || isRefreshing) && (
+        {(pullDistance > 0 || (isRefreshing && refreshSource === 'pull')) && (
           <div className="mb-3 flex justify-center">
             <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm">
               {isRefreshing
