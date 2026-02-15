@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import type { ChangeEvent, CSSProperties, FormEvent } from 'react';
 import { type ParsedInput } from '../lib/parser';
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '../constants';
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, type PaymentMethod } from '../constants';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { useDialogViewport } from '../hooks/useDialogViewport';
 import { showAlert, showConfirm } from '../services/message-dialog';
 import ModalShell from './ModalShell';
-
-type PaymentMethod = '신용카드' | '체크카드' | '현금' | '계좌이체';
+import DialogSelect from './DialogSelect';
 
 export interface Record {
   id: string;
@@ -28,6 +27,13 @@ interface DetailEntryProps {
   onUpdate: (id: string, parsed: Partial<ParsedInput>, date: string) => void;
   onDelete: (id: string) => void;
 }
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: '신용카드', label: '신용카드' },
+  { value: '체크카드', label: '체크카드' },
+  { value: '현금', label: '현금' },
+  { value: '계좌이체', label: '계좌이체' },
+] as const;
 
 function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubmit, onUpdate, onDelete }: DetailEntryProps) {
   const [isIncome, setIsIncome] = useState(false);
@@ -308,38 +314,25 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
           {/* 결제수단 */}
           <div>
             <label htmlFor="method" className="mb-2 block text-sm font-medium text-gray-700">결제수단</label>
-            <select
+            <DialogSelect
               id="method"
+              label="결제수단"
               value={method}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                setMethod(e.target.value as PaymentMethod | '')
-              }
-              className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-            >
-              <option value="">선택 안함</option>
-              <option value="신용카드">신용카드</option>
-              <option value="체크카드">체크카드</option>
-              <option value="현금">현금</option>
-              <option value="계좌이체">계좌이체</option>
-            </select>
+              options={PAYMENT_METHOD_OPTIONS}
+              onChange={(selected) => setMethod(selected)}
+            />
           </div>
 
           {/* 카테고리 */}
           <div>
             <label htmlFor="category" className="mb-2 block text-sm font-medium text-gray-700">카테고리</label>
-            <select
+            <DialogSelect
               id="category"
+              label="카테고리"
               value={category}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) => setCategory(e.target.value)}
-              className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-            >
-              <option value="">선택 안함</option>
-              {(isIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+              options={(isIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map((cat) => ({ value: cat, label: cat }))}
+              onChange={(selected) => setCategory(selected)}
+            />
           </div>
           </div>
 
