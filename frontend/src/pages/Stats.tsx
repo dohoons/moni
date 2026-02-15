@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStats, transformCategoryData } from '../hooks/useStats';
+import ChangeHistoryModal from '../components/ChangeHistoryModal';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { useDialogViewport } from '../hooks/useDialogViewport';
+import { useRecordsController } from '../hooks/useRecordsController';
 import { PieChart, Pie, Cell, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceDot } from 'recharts';
 import ModalShell from '../components/ModalShell';
 
@@ -275,6 +277,7 @@ function getCumulativeAtProgress(
 function Stats() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { restoreHistory } = useRecordsController();
   const now = new Date();
   const defaultYear = now.getFullYear();
   const defaultMonth = now.getMonth() + 1;
@@ -289,11 +292,12 @@ function Stats() {
     return Number.isInteger(urlMonth) && urlMonth >= 1 && urlMonth <= 12 ? urlMonth : defaultMonth;
   });
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [draftYear, setDraftYear] = useState(defaultYear);
   const [draftMonth, setDraftMonth] = useState(defaultMonth);
   const { isMobile, keyboardInset } = useDialogViewport(isMonthPickerOpen);
 
-  const { data: stats, isPending, error } = useStats(selectedYear, selectedMonth);
+  const { data: stats, isPending, error, refetch } = useStats(selectedYear, selectedMonth);
 
   useEffect(() => {
     const currentYear = searchParams.get('year');
@@ -554,14 +558,28 @@ function Stats() {
       {/* Header */}
       <header className="fixed left-0 right-0 top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur safe-area-top">
         <div className="mx-auto max-w-2xl px-4 py-4 sm:px-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">통계</h1>
+          <div className="relative flex items-center justify-center">
             <button
               onClick={() => navigate('/')}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              aria-label="뒤로가기"
+              className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              ← 홈
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
             </button>
+            <h1 className="text-center text-xl font-bold text-gray-900 sm:text-2xl">통계</h1>
+            <div className="absolute right-0 flex items-center gap-2">
+              <button
+                onClick={() => setShowHistoryModal(true)}
+                aria-label="이력"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l2.5 2.5m6.5-2.5a9 9 0 11-3.2-6.9" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -1106,6 +1124,12 @@ function Stats() {
           )}
         </div>
       </main>
+
+      <ChangeHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        onRestore={(entry) => restoreHistory(entry, { onRestored: async () => { await refetch(); } })}
+      />
     </div>
   );
 }

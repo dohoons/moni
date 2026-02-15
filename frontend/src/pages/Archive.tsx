@@ -405,23 +405,26 @@ function Archive() {
     <div className="min-h-screen bg-gray-50">
       <header className="fixed left-0 right-0 top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur safe-area-top">
         <div className="mx-auto max-w-2xl px-4 py-4 sm:px-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">월별 보기</h1>
-            <div className="flex gap-2">
+          <div className="relative flex items-center justify-center">
+            <button
+              onClick={() => navigate('/')}
+              aria-label="뒤로가기"
+              className="absolute left-0 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-center text-xl font-bold text-gray-900 sm:text-2xl">월별 보기</h1>
+            <div className="absolute right-0 flex items-center gap-2">
               <button
                 onClick={() => setShowHistoryModal(true)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                aria-label="이력"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
-                <span className="hidden sm:inline">이력</span>
-                <svg className="h-5 w-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l2.5 2.5m6.5-2.5a9 9 0 11-3.2-6.9" />
                 </svg>
-              </button>
-              <button
-                onClick={() => navigate('/')}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                ← 홈
               </button>
             </div>
           </div>
