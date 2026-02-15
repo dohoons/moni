@@ -637,6 +637,10 @@ function Archive() {
                 <div className="space-y-2">
                   {dateRecords.map((record) => {
                     const isSaving = record._isSaving;
+                    const hasMemo = Boolean(record.memo?.trim());
+                    const displayMemo = !hasMemo && record.category === '식비'
+                      ? '#식비'
+                      : (record.memo || '-');
                     return (
                       <div
                         key={record.id}
@@ -651,7 +655,7 @@ function Archive() {
                               <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
                             )}
                             <p className={`font-medium text-gray-900 ${isSaving ? 'text-gray-400' : ''}`}>
-                              {record.memo || '-'}
+                              {displayMemo}
                             </p>
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
