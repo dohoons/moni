@@ -4,7 +4,7 @@
  * 사용자별 시트 생성 및 스키마 관리
  */
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 const SPREADSHEET_ID = '1HF7btOFx-5RGanlxw7cYWnQv5vx1murQEuy9lUxbIY0';
 
 /**
@@ -59,16 +59,17 @@ function getSchemaVersion(metaSheet) {
 }
 
 /**
- * 최신 스키마로 초기화 (V6)
+ * 최신 스키마로 초기화 (V7)
  */
 function initializeSchema(spreadsheet) {
   // Data 시트 생성 및 헤더 설정
   const dataSheet = getOrCreateSheet(spreadsheet, 'Data');
   if (dataSheet.getLastRow() === 0) {
     dataSheet.appendRow([
-      'id', 'date', 'amount', 'memo', 'method', 'category', 'created', 'email'
+      'id', 'date', 'amount', 'memo', 'method', 'category', 'created', 'updated'
     ]);
   }
+  migrateDataSheetToV7(dataSheet);
 
   // Categories 시트 생성
   const categoriesSheet = getOrCreateSheet(spreadsheet, 'Categories');
@@ -105,6 +106,54 @@ function initializeSchema(spreadsheet) {
 
   // 데이터 유효성 적용
   applyDataValidation(dataSheet, categoriesSheet, methodsSheet);
+}
+
+/**
+ * Data 시트를 V7 스키마로 마이그레이션
+ *
+ * V6: id, date, amount, memo, method, category, created, email
+ * V7: id, date, amount, memo, method, category, created, updated
+ */
+function migrateDataSheetToV7(dataSheet) {
+  const headerRange = dataSheet.getRange(1, 1, 1, 8);
+  const headers = headerRange.getValues()[0];
+  const hadUpdatedColumn = headers[7] === 'updated';
+
+  const expectedPrefix = ['id', 'date', 'amount', 'memo', 'method', 'category', 'created'];
+  const isExpectedPrefix = expectedPrefix.every((name, index) => headers[index] === name);
+  if (!isExpectedPrefix) {
+    return;
+  }
+
+  if (headers[7] !== 'updated') {
+    dataSheet.getRange(1, 8).setValue('updated');
+  }
+
+  const lastRow = dataSheet.getLastRow();
+  if (lastRow <= 1) {
+    return;
+  }
+
+  const createdValues = dataSheet.getRange(2, 7, lastRow - 1, 1).getValues();
+  const updatedValues = hadUpdatedColumn
+    ? dataSheet.getRange(2, 8, lastRow - 1, 1).getValues()
+    : null;
+
+  const nextUpdatedValues = createdValues.map((createdRow, index) => {
+    const created = createdRow[0] || new Date().toISOString();
+    if (!hadUpdatedColumn) {
+      // V6(email) -> V7(updated) 전환 시에는 기존 8열(email) 값을 버리고 created로 백필
+      return [created];
+    }
+
+    const updated = updatedValues ? updatedValues[index][0] : null;
+    if (updated !== '' && updated !== null) {
+      return [updated];
+    }
+    return [created];
+  });
+
+  dataSheet.getRange(2, 8, lastRow - 1, 1).setValues(nextUpdatedValues);
 }
 
 /**

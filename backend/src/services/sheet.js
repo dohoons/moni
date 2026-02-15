@@ -12,7 +12,7 @@ const COLUMN_MAP = {
   method: 5,
   category: 6,
   created: 7,
-  email: 8
+  updated: 8
 };
 
 /**
@@ -28,7 +28,8 @@ function getDataSheet() {
  */
 function createRecord(record) {
   const sheet = getDataSheet();
-  const userEmail = Session.getActiveUser().getEmail();
+  const created = record.created || new Date().toISOString();
+  const updated = record.updated || created;
 
   const row = [
     record.id || generateUUID(),
@@ -37,8 +38,8 @@ function createRecord(record) {
     record.memo || '',
     record.method || '',
     record.category || '',
-    record.created || new Date().toISOString(),
-    userEmail  // 사용자 이메일 저장
+    created,
+    updated
   ];
 
   sheet.appendRow(row);
@@ -46,7 +47,8 @@ function createRecord(record) {
 
   return {
     id: row[0],
-    created: row[6]
+    created: row[6],
+    updated: row[7]
   };
 }
 
@@ -91,7 +93,7 @@ function getRecords(params) {
     return [];
   }
 
-  // 전체 데이터 가져오기 (8열: email 포함)
+  // 전체 데이터 가져오기 (8열: updated 포함)
   const rawData = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
 
   // 모든 데이터를 먼저 객체로 변환 (날짜 정규화 포함)
@@ -103,7 +105,8 @@ function getRecords(params) {
       memo: row[3],
       method: row[4],
       category: row[5],
-      created: row[6]
+      created: row[6],
+      updated: row[7] || row[6]
     };
   });
 
@@ -175,10 +178,12 @@ function updateRecord(id, updates) {
   if (updates.category !== undefined) {
     sheet.getRange(rowNum, COLUMN_MAP.category).setValue(updates.category || '');
   }
+  const nowIso = new Date().toISOString();
+  sheet.getRange(rowNum, COLUMN_MAP.updated).setValue(nowIso);
 
   SpreadsheetApp.flush();  // 즉시 반영
 
-  return { id };
+  return { id, updated: nowIso };
 }
 
 /**
