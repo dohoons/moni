@@ -49,6 +49,7 @@ const isDateInCurrentMonth = (date: string, yearMonth: { year: number; month: nu
 };
 
 const MONTH_FETCH_LIMIT = 99999;
+const STICKY_TITLEBAR_GAP = 8;
 
 function Archive() {
   const navigate = useNavigate();
@@ -86,7 +87,7 @@ function Archive() {
     const titleBarBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
     return {
       titleBarBottom,
-      dayHeadingTop: titleBarBottom + 112,
+      dayHeadingTop: titleBarBottom + STICKY_TITLEBAR_GAP + 112,
     };
   });
   const pullStartYRef = useRef<number | null>(null);
@@ -149,12 +150,11 @@ function Archive() {
     const updateStickyOffsets = () => {
       const titleBarBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
       const monthSummaryHeight = monthSummaryRef.current?.offsetHeight ?? 112;
-      const gap = 0;
 
       setStickyOffsets((prev) => {
         const next = {
           titleBarBottom,
-          dayHeadingTop: titleBarBottom + monthSummaryHeight + gap,
+          dayHeadingTop: titleBarBottom + monthSummaryHeight + STICKY_TITLEBAR_GAP,
         };
         if (
           Math.abs(prev.titleBarBottom - next.titleBarBottom) <= 0.5 &&
@@ -453,7 +453,7 @@ function Archive() {
         <div
           ref={monthSummaryRef}
           className="sticky z-[2] mb-6 rounded-xl bg-white p-4 shadow-sm"
-          style={{ top: `${stickyOffsets.titleBarBottom}px` }}
+          style={{ top: `${stickyOffsets.titleBarBottom + STICKY_TITLEBAR_GAP}px` }}
         >
           <div className="flex items-center justify-between">
             <button
