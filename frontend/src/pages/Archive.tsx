@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import DetailEntry, { type Record as TransactionRecord } from '../components/DetailEntry';
 import ChangeHistoryModal from '../components/ChangeHistoryModal';
+import RecordListItem from '../components/RecordListItem';
 import { useRecordsController } from '../hooks/useRecordsController';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { useDialogViewport } from '../hooks/useDialogViewport';
@@ -636,48 +637,12 @@ function Archive() {
                 </div>
                 <div className="space-y-2">
                   {dateRecords.map((record) => {
-                    const isSaving = record._isSaving;
-                    const hasMemo = Boolean(record.memo?.trim());
-                    const displayMemo = !hasMemo && record.category === '식비'
-                      ? '#식비'
-                      : (record.memo || '-');
                     return (
-                      <div
+                      <RecordListItem
                         key={record.id}
-                        onClick={() => !isSaving && handleRecordClick(record)}
-                        className={`flex items-center justify-between rounded-xl bg-white p-4 shadow-sm transition-all ${
-                          isSaving ? 'cursor-default opacity-75' : 'cursor-pointer hover:shadow-md'
-                        }`}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            {isSaving && (
-                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-                            )}
-                            <p className={`font-medium text-gray-900 ${isSaving ? 'text-gray-400' : ''}`}>
-                              {displayMemo}
-                            </p>
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                            {record.category && (
-                              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                                #{record.category}
-                              </span>
-                            )}
-                            {record.method && (
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                                {record.method}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div
-                          className={`ml-4 text-right font-bold ${record.amount > 0 ? 'text-emerald-600' : 'text-slate-700'}`}
-                        >
-                          {record.amount > 0 ? '+' : ''}
-                          {Math.abs(record.amount).toLocaleString()}원
-                        </div>
-                      </div>
+                        record={record}
+                        onClick={handleRecordClick}
+                      />
                     );
                   })}
                 </div>
