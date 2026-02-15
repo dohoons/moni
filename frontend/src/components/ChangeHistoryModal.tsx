@@ -43,8 +43,6 @@ function ChangeHistoryModal({ isOpen, onClose, onRestore }: ChangeHistoryModalPr
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   const dialogStyle: CSSProperties = {
     ...panelStyle,
     marginBottom: isMobile ? keyboardInset : undefined,
@@ -130,7 +128,7 @@ function ChangeHistoryModal({ isOpen, onClose, onRestore }: ChangeHistoryModalPr
       open={isOpen}
       onBackdropClick={onClose}
       overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-      panelClassName="flex w-full max-w-lg max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:rounded-2xl"
+      panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-lg sm:rounded-2xl"
       panelRef={panelRef}
       panelStyle={dialogStyle}
       panelProps={panelTouch}
