@@ -104,6 +104,11 @@ export function clearChangeHistory() {
   localStorage.removeItem(STORAGE_KEY);
 }
 
+export function removeChangeHistoryEntry(entryId: string) {
+  const entries = readEntries().filter((entry) => entry.id !== entryId);
+  writeEntries(entries);
+}
+
 export function buildAfterSnapshot(
   before: HistoryRecordSnapshot,
   parsed: Partial<ParsedInput>,
@@ -118,4 +123,3 @@ export function buildAfterSnapshot(
     category: parsed.category !== undefined ? parsed.category : before.category,
   };
 }
-
