@@ -4,7 +4,7 @@ import { type ParsedInput } from '../lib/parser';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, type PaymentMethod } from '../constants';
 import { useDialogViewport } from '../hooks/useDialogViewport';
 import { showAlert, showConfirm } from '../services/message-dialog';
-import type { Template, TemplateDraft } from '../services/api';
+import type { Template } from '../services/api';
 import ModalShell from './ModalShell';
 import DialogSelect from './DialogSelect';
 import { getTodayDate } from '../lib/date';
@@ -29,10 +29,12 @@ interface DetailEntryProps {
   onSubmit: (parsed: ParsedInput) => void;
   onUpdate: (id: string, parsed: Partial<ParsedInput>, date: string) => void;
   onDelete: (id: string) => void;
-  onSaveTemplate: (draft: TemplateDraft) => Promise<void>;
-  onOpenTemplateSaveModal?: (params: {
-    hasAmount: boolean;
-    onSubmit: (payload: { name: string; includeAmount: boolean }) => Promise<void>;
+  openTemplateSaveModal?: (input: {
+    type: 'income' | 'expense';
+    amount: number | null;
+    memo: string | null;
+    method: PaymentMethod | null;
+    category: string | null;
   }) => Promise<void>;
   showTemplateSaveButton?: boolean;
 }
@@ -106,8 +108,7 @@ function DetailEntryInner({
   onSubmit,
   onUpdate,
   onDelete,
-  onSaveTemplate,
-  onOpenTemplateSaveModal,
+  openTemplateSaveModal,
   showTemplateSaveButton = true,
   initialFormState,
 }: DetailEntryInnerProps) {
@@ -223,33 +224,14 @@ function DetailEntryInner({
     }
   };
 
-  const handleTemplateSave = async (payload: { name: string; includeAmount: boolean }) => {
-    const trimmedMemo = memo.trim();
-    const selectedMethod = method || null;
-    const selectedCategory = category.trim() || null;
-    const hasAmount = numAmount > 0;
-    const finalAmount = payload.includeAmount && hasAmount ? parsedAmount : null;
-
-    if (!finalAmount && !trimmedMemo && !selectedMethod && !selectedCategory) {
-      await showAlert('템플릿에 저장할 값을 1개 이상 입력해주세요.');
-      return;
-    }
-
-    await onSaveTemplate({
-      name: payload.name,
+  const requestTemplateSave = async () => {
+    if (!openTemplateSaveModal) return;
+    await openTemplateSaveModal({
       type: isIncome ? 'income' : 'expense',
-      amount: finalAmount,
-      memo: trimmedMemo || null,
-      method: selectedMethod,
-      category: selectedCategory,
-    });
-  };
-
-  const openTemplateSaveModal = async () => {
-    if (!onOpenTemplateSaveModal) return;
-    await onOpenTemplateSaveModal({
-      hasAmount: numAmount > 0,
-      onSubmit: handleTemplateSave,
+      amount: numAmount > 0 ? parsedAmount : null,
+      memo: memo.trim() || null,
+      method: method || null,
+      category: category.trim() || null,
     });
   };
 
@@ -272,7 +254,7 @@ function DetailEntryInner({
             {showTemplateSaveButton && (
               <button
                 type="button"
-                onClick={() => void openTemplateSaveModal()}
+                onClick={() => void requestTemplateSave()}
                 className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 템플릿 저장
@@ -442,8 +424,7 @@ function DetailEntry({
   onSubmit,
   onUpdate,
   onDelete,
-  onSaveTemplate,
-  onOpenTemplateSaveModal,
+  openTemplateSaveModal,
   showTemplateSaveButton = true,
 }: DetailEntryProps) {
   const initialFormState = buildInitialFormState({
@@ -471,8 +452,7 @@ function DetailEntry({
       onSubmit={onSubmit}
       onUpdate={onUpdate}
       onDelete={onDelete}
-      onSaveTemplate={onSaveTemplate}
-      onOpenTemplateSaveModal={onOpenTemplateSaveModal}
+      openTemplateSaveModal={openTemplateSaveModal}
       showTemplateSaveButton={showTemplateSaveButton}
       initialFormState={initialFormState}
     />

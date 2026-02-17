@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { overlay } from 'overlay-kit';
 import { api, type Template } from '../services/api';
 import { useRecordsController } from '../hooks/useRecordsController';
-import { useTemplate } from '../hooks/useTemplate';
 import { useAuth } from '../contexts/AuthContext';
 import SmartEntry from '../components/SmartEntry';
 import DetailEntry, { type Record } from '../components/DetailEntry';
@@ -12,6 +11,8 @@ import RecordListItem from '../components/RecordListItem';
 import SyncIndicator from '../components/SyncIndicator';
 import SyncQueueModal from '../components/SyncQueueModal';
 import ChangeHistoryModal from '../components/ChangeHistoryModal';
+import { useTemplatePicker } from '../components/TemplatePickerModal';
+import { useTemplateSave } from '../components/TemplateSaveModal';
 import type { ParsedInput } from '../lib/parser';
 import { getTodayDate } from '../lib/date';
 import { WEEKDAYS } from '../constants';
@@ -62,7 +63,8 @@ function Home() {
     isOnline,
     pendingCount,
   } = useRecordsController();
-  const { saveTemplate, pickTemplate, openTemplateSaveModal } = useTemplate();
+  const { openTemplatePickerModal } = useTemplatePicker();
+  const { openTemplateSaveModal } = useTemplateSave();
 
   const findRecordElementById = useCallback((id: string): HTMLElement | null => {
     const elements = document.querySelectorAll<HTMLElement>('[data-record-id]');
@@ -515,8 +517,7 @@ function Home() {
           close(undefined);
           void handleDelete(id);
         }}
-        onSaveTemplate={saveTemplate}
-        onOpenTemplateSaveModal={openTemplateSaveModal}
+        openTemplateSaveModal={openTemplateSaveModal}
       />
     ));
 
@@ -525,8 +526,8 @@ function Home() {
     void openDetailEntry({ editRecord: record });
   };
 
-  const openTemplatePicker = async () => {
-    const selectedTemplate = await pickTemplate();
+  const handleOpenTemplatePicker = async () => {
+    const selectedTemplate = await openTemplatePickerModal();
 
     if (!selectedTemplate) return;
 
@@ -691,7 +692,7 @@ function Home() {
             <h2 className="text-lg font-semibold text-gray-900">빠른 기록</h2>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => void openTemplatePicker()}
+                onClick={() => void handleOpenTemplatePicker()}
                 className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition-all hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
               >
                 템플릿

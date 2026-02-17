@@ -1,35 +1,79 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Template } from '../services/api';
+/* eslint-disable react-refresh/only-export-components */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { overlay } from 'overlay-kit';
+import { api, type Template } from '../services/api';
+import { showAlert, showConfirm } from '../services/message-dialog';
 import ModalShell from './ModalShell';
+
+const EMPTY_TEMPLATES: Template[] = [];
 
 interface TemplatePickerModalProps {
   isOpen: boolean;
   onAfterClose?: () => void;
-  templates: Template[];
-  isLoading: boolean;
-  isSavingOrder?: boolean;
-  deletingTemplateId?: string | null;
-  errorMessage?: string;
   onClose: () => void;
   onSelect: (template: Template) => void;
-  onReorder: (ids: string[]) => void | Promise<void>;
-  onDelete: (template: Template) => boolean | Promise<boolean>;
+}
+
+interface ReorderState {
+  debounceTimer: number | null;
+  controller: AbortController | null;
+  latestIds: string[];
+  token: number;
+  pending: {
+    token: number;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  } | null;
+}
+
+async function fetchTemplates() {
+  const response = await api.getTemplates();
+  return response.data || [];
+}
+
+function createAbortError() {
+  const error = new Error('Aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+export function useTemplatePicker() {
+  const openTemplatePickerModal = useCallback(
+    () =>
+      overlay.openAsync<Template | null>(({ isOpen, close, unmount }) => (
+        <TemplatePickerModal
+          isOpen={isOpen}
+          onAfterClose={unmount}
+          onClose={() => close(null)}
+          onSelect={(template) => close(template)}
+        />
+      )),
+    []
+  );
+
+  return { openTemplatePickerModal };
 }
 
 function TemplatePickerModal({
   isOpen,
   onAfterClose,
-  templates,
-  isLoading,
-  isSavingOrder = false,
-  deletingTemplateId = null,
-  errorMessage,
   onClose,
   onSelect,
-  onReorder,
-  onDelete,
 }: TemplatePickerModalProps) {
-  const [orderedTemplates, setOrderedTemplates] = useState<Template[]>(templates);
+  const queryClient = useQueryClient();
+  const {
+    data: templatesData,
+    isPending: isLoading,
+    error: templatesError,
+  } = useQuery({
+    queryKey: ['templates'],
+    queryFn: fetchTemplates,
+    staleTime: 1 * 60 * 1000,
+  });
+  const templates = templatesData ?? EMPTY_TEMPLATES;
+  const errorMessage = templatesError ? (templatesError as Error).message : undefined;
+  const [orderedTemplateIds, setOrderedTemplateIds] = useState<string[] | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [skipClickId, setSkipClickId] = useState<string | null>(null);
   const [localSavingOrder, setLocalSavingOrder] = useState(false);
@@ -37,19 +81,31 @@ function TemplatePickerModal({
   const orderedTemplatesRef = useRef<Template[]>(templates);
   const dragPointerIdRef = useRef<number | null>(null);
   const didMoveRef = useRef(false);
+  const reorderStateRef = useRef<ReorderState>({
+    debounceTimer: null,
+    controller: null,
+    latestIds: [],
+    token: 0,
+    pending: null,
+  });
+
+  const filtered = useMemo(() => {
+    if (!orderedTemplateIds) return templates;
+    const byId = new Map(templates.map((item) => [item.id, item]));
+    const ordered = orderedTemplateIds
+      .map((id) => byId.get(id))
+      .filter(Boolean) as Template[];
+    const orderedIdSet = new Set(orderedTemplateIds);
+    const remaining = templates.filter((item) => !orderedIdSet.has(item.id));
+    return [...ordered, ...remaining];
+  }, [orderedTemplateIds, templates]);
 
   useEffect(() => {
-    setOrderedTemplates(templates);
-  }, [templates]);
-
-  useEffect(() => {
-    orderedTemplatesRef.current = orderedTemplates;
-  }, [orderedTemplates]);
-
-  const filtered = useMemo(() => orderedTemplates, [orderedTemplates]);
+    orderedTemplatesRef.current = filtered;
+  }, [filtered]);
   const canDrag = !isLoading && !errorMessage;
-  const savingOrder = isSavingOrder || localSavingOrder;
-  const activeDeletingId = localDeletingId || deletingTemplateId;
+  const savingOrder = localSavingOrder;
+  const activeDeletingId = localDeletingId;
 
   const getSubtitle = (template: Template) => {
     const parts = [template.memo, template.method, template.category].filter(Boolean);
@@ -65,17 +121,19 @@ function TemplatePickerModal({
   const moveTemplate = (sourceId: string, targetId: string, shouldPersist: boolean = true) => {
     if (sourceId === targetId) return;
 
-    const sourceIndex = orderedTemplates.findIndex((item) => item.id === sourceId);
-    const targetIndex = orderedTemplates.findIndex((item) => item.id === targetId);
+    const current = orderedTemplatesRef.current;
+    const sourceIndex = current.findIndex((item) => item.id === sourceId);
+    const targetIndex = current.findIndex((item) => item.id === targetId);
     if (sourceIndex === -1 || targetIndex === -1) return;
 
-    const next = [...orderedTemplates];
+    const next = [...current];
     const [moved] = next.splice(sourceIndex, 1);
     next.splice(targetIndex, 0, moved);
-    setOrderedTemplates(next);
+    orderedTemplatesRef.current = next;
+    setOrderedTemplateIds(next.map((item) => item.id));
 
     if (!shouldPersist) return;
-    onReorder(next.map((item) => item.id));
+    void persistReorder(next.map((item) => item.id));
   };
 
   const handleTemplateClick = (template: Template) => {
@@ -86,26 +144,158 @@ function TemplatePickerModal({
     onSelect(template);
   };
 
+  const reorderTemplates = useCallback(
+    (ids: string[]) =>
+      new Promise<void>((resolve, reject) => {
+        const state = reorderStateRef.current;
+        const token = state.token + 1;
+        state.token = token;
+        state.latestIds = ids;
+        if (state.pending) {
+          state.pending.reject(createAbortError());
+        }
+        state.pending = {
+          token,
+          resolve,
+          reject: (error) => reject(error),
+        };
+
+        queryClient.setQueryData(['templates'], (old: Template[] = []) => {
+          if (!old.length) return old;
+          const byId = new Map(old.map((item) => [item.id, item]));
+          const ordered = ids
+            .map((id, index) => {
+              const found = byId.get(id);
+              if (!found) return null;
+              return { ...found, sortOrder: index + 1 };
+            })
+            .filter(Boolean) as Template[];
+          const remain = old.filter((item) => !ids.includes(item.id));
+          return [...ordered, ...remain];
+        });
+
+        if (state.debounceTimer !== null) {
+          window.clearTimeout(state.debounceTimer);
+          state.debounceTimer = null;
+        }
+
+        if (state.controller) {
+          state.controller.abort();
+          state.controller = null;
+        }
+
+        state.debounceTimer = window.setTimeout(() => {
+          const current = reorderStateRef.current;
+          const controller = new AbortController();
+          current.controller = controller;
+          const payload = [...current.latestIds];
+
+          void api
+            .reorderTemplates(payload, controller.signal)
+            .then(() => {
+              if (current.pending?.token === token) {
+                current.pending.resolve();
+              }
+            })
+            .catch(async (error: any) => {
+              if (error?.name === 'AbortError') {
+                if (current.pending?.token === token) {
+                  current.pending.reject(createAbortError());
+                }
+                return;
+              }
+              if (current.pending?.token === token) {
+                current.pending.reject(error instanceof Error ? error : new Error(String(error)));
+              }
+              await queryClient.invalidateQueries({ queryKey: ['templates'] });
+              await showAlert('템플릿 순서 저장에 실패했습니다: ' + error.message);
+            })
+            .finally(() => {
+              if (current.controller === controller) {
+                current.controller = null;
+              }
+              if (current.pending?.token === token) {
+                current.pending = null;
+              }
+            });
+        }, 180);
+      }),
+    [queryClient]
+  );
+
   const persistReorder = (ids: string[]) => {
+    const requestToken = reorderStateRef.current.token + 1;
     setLocalSavingOrder(true);
-    void Promise.resolve(onReorder(ids)).finally(() => {
-      setLocalSavingOrder(false);
-    });
+    void Promise.resolve(reorderTemplates(ids))
+      .catch(() => {
+        // 오류 알림은 내부 reorderTemplates에서 처리한다.
+      })
+      .finally(() => {
+        if (reorderStateRef.current.token !== requestToken) return;
+        setLocalSavingOrder(false);
+      });
   };
+
+  const deleteTemplate = useCallback(
+    async (template: Template) => {
+      if (
+        !(await showConfirm(`"${template.name}" 템플릿을 삭제할까요?`, {
+          primaryLabel: '삭제',
+          secondaryLabel: '취소',
+          tone: 'danger',
+        }))
+      ) {
+        return false;
+      }
+
+      try {
+        await api.deleteTemplate(template.id);
+        queryClient.setQueryData(['templates'], (old: Template[] = []) =>
+          old.filter((item) => item.id !== template.id)
+        );
+        await queryClient.invalidateQueries({ queryKey: ['templates'] });
+        return true;
+      } catch (error: any) {
+        await showAlert('템플릿 삭제에 실패했습니다: ' + error.message);
+        return false;
+      }
+    },
+    [queryClient]
+  );
 
   const handleDeleteTemplate = (template: Template) => {
     if (activeDeletingId) return;
 
     setLocalDeletingId(template.id);
-    void Promise.resolve(onDelete(template))
+    void Promise.resolve(deleteTemplate(template))
       .then((deleted) => {
         if (!deleted) return;
-        setOrderedTemplates((prev) => prev.filter((item) => item.id !== template.id));
+        const next = orderedTemplatesRef.current.filter((item) => item.id !== template.id);
+        orderedTemplatesRef.current = next;
+        setOrderedTemplateIds(next.map((item) => item.id));
       })
       .finally(() => {
         setLocalDeletingId(null);
       });
   };
+
+  useEffect(() => {
+    const state = reorderStateRef.current;
+    return () => {
+      if (state.debounceTimer !== null) {
+        window.clearTimeout(state.debounceTimer);
+        state.debounceTimer = null;
+      }
+      if (state.controller) {
+        state.controller.abort();
+        state.controller = null;
+      }
+      if (state.pending) {
+        state.pending.reject(createAbortError());
+        state.pending = null;
+      }
+    };
+  }, []);
 
   return (
     <ModalShell

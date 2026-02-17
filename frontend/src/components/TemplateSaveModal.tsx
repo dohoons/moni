@@ -1,15 +1,47 @@
-import { useEffect, useState } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import { useCallback, useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { overlay } from 'overlay-kit';
+import type { PaymentMethod } from '../constants';
+import { api } from '../services/api';
+import { showAlert } from '../services/message-dialog';
 import ModalShell from './ModalShell';
 
 interface TemplateSaveModalProps {
   isOpen: boolean;
-  hasAmount: boolean;
+  input: TemplateSaveInput;
   onClose: () => void;
   onAfterClose?: () => void;
-  onSubmit: (payload: { name: string; includeAmount: boolean }) => Promise<void>;
 }
 
-function TemplateSaveModal({ isOpen, hasAmount, onClose, onAfterClose, onSubmit }: TemplateSaveModalProps) {
+type TemplateSaveInput = {
+  type: 'income' | 'expense';
+  amount: number | null;
+  memo: string | null;
+  method: PaymentMethod | null;
+  category: string | null;
+};
+
+export function useTemplateSave() {
+  const openTemplateSaveModal = useCallback(
+    (input: TemplateSaveInput) =>
+      overlay.openAsync<void>(({ isOpen, close, unmount }) => (
+        <TemplateSaveModal
+          isOpen={isOpen}
+          input={input}
+          onClose={() => close(undefined)}
+          onAfterClose={unmount}
+        />
+      )),
+    []
+  );
+
+  return { openTemplateSaveModal };
+}
+
+function TemplateSaveModal({ isOpen, input, onClose, onAfterClose }: TemplateSaveModalProps) {
+  const queryClient = useQueryClient();
+  const hasAmount = input.amount !== null;
   const [name, setName] = useState('');
   const [includeAmount, setIncludeAmount] = useState(hasAmount);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,7 +59,23 @@ function TemplateSaveModal({ isOpen, hasAmount, onClose, onAfterClose, onSubmit 
 
     setIsSubmitting(true);
     try {
-      await onSubmit({ name: name.trim(), includeAmount: hasAmount ? includeAmount : false });
+      const finalAmount = includeAmount && hasAmount ? input.amount : null;
+      if (!finalAmount && !input.memo && !input.method && !input.category) {
+        await showAlert('템플릿에 저장할 값을 1개 이상 입력해주세요.');
+        return;
+      }
+
+      await api.createTemplate({
+        name: name.trim(),
+        type: input.type,
+        amount: finalAmount,
+        memo: input.memo,
+        method: input.method,
+        category: input.category,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['templates'] });
+      await showAlert('템플릿으로 저장했습니다.');
+      onClose();
     } finally {
       setIsSubmitting(false);
     }

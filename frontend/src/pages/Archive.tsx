@@ -335,7 +335,6 @@ function Archive() {
           close(undefined);
           void handleDelete(id);
         }}
-        onSaveTemplate={async () => undefined}
         showTemplateSaveButton={false}
       />
     ));
