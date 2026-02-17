@@ -1,5 +1,6 @@
 import { forceRefreshAccessToken, getAccessToken } from './google-oauth';
 import type { ParsedInput } from '../lib/parser';
+import type { PaymentMethod } from '../constants';
 import { getTodayDate } from '../lib/date';
 
 const GAS_WEB_APP_URL = import.meta.env.VITE_GAS_WEB_APP_URL;
@@ -8,6 +9,30 @@ interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  type: 'income' | 'expense';
+  amount: number | null;
+  memo: string | null;
+  method: PaymentMethod | null;
+  category: string | null;
+  useCount: number;
+  lastUsedAt: string | null;
+  created: string;
+  updated: string;
+  sortOrder: number;
+}
+
+export interface TemplateDraft {
+  name: string;
+  type: 'income' | 'expense';
+  amount: number | null;
+  memo: string | null;
+  method: PaymentMethod | null;
+  category: string | null;
 }
 
 /**
@@ -19,7 +44,8 @@ interface ApiResponse<T = any> {
 async function request<T = any>(
   path: string,
   data?: any,
-  allowAuthRetry = true
+  allowAuthRetry = true,
+  signal?: AbortSignal
 ): Promise<ApiResponse<T>> {
   // Google Access Token 획득
   const accessToken = await getAccessToken();
@@ -35,6 +61,7 @@ async function request<T = any>(
     method: 'POST',
     mode: 'cors',
     redirect: 'follow',
+    signal,
     headers: {
       'Content-Type': 'text/plain;charset=utf-8',
     },
@@ -66,7 +93,7 @@ async function request<T = any>(
     if (allowAuthRetry && isAuthError) {
       const refreshed = await forceRefreshAccessToken();
       if (refreshed) {
-        return request<T>(path, data, false);
+        return request<T>(path, data, false, signal);
       }
     }
 
@@ -101,6 +128,30 @@ export const api = {
 
   getRecords: async (params?: { startDate?: string; endDate?: string; limit?: number; cursor?: string }) => {
     return request('/api/records', params || {});
+  },
+
+  getTemplates: async () => {
+    return request<Template[]>('/api/templates');
+  },
+
+  createTemplate: async (data: TemplateDraft) => {
+    return request<Template>('/api/template', data);
+  },
+
+  updateTemplate: async (id: string, data: Partial<TemplateDraft> & { name?: string }) => {
+    return request<Template>('/api/template/update', { id, ...data });
+  },
+
+  deleteTemplate: async (id: string) => {
+    return request<{ id: string }>('/api/template/delete', { id });
+  },
+
+  markTemplateUsed: async (id: string) => {
+    return request<{ id: string; useCount: number; lastUsedAt: string; updated: string }>('/api/template/use', { id });
+  },
+
+  reorderTemplates: async (ids: string[], signal?: AbortSignal) => {
+    return request<{ ids: string[] }>('/api/template/reorder', { ids }, true, signal);
   },
 
   getStats: async (params?: { year?: number; month?: number }) => {

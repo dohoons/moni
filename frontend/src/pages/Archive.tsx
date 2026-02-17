@@ -682,6 +682,8 @@ function Archive() {
         onSubmit={() => undefined}
         onUpdate={handleUpdate}
         onDelete={handleDelete}
+        onSaveTemplate={async () => undefined}
+        showTemplateSaveButton={false}
       />
 
       <ChangeHistoryModal

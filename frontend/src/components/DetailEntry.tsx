@@ -5,8 +5,10 @@ import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, type PaymentMethod } from '../co
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { useDialogViewport } from '../hooks/useDialogViewport';
 import { showAlert, showConfirm } from '../services/message-dialog';
+import type { Template, TemplateDraft } from '../services/api';
 import ModalShell from './ModalShell';
 import DialogSelect from './DialogSelect';
+import TemplateSaveModal from './TemplateSaveModal';
 import { getTodayDate } from '../lib/date';
 
 export interface Record {
@@ -23,10 +25,13 @@ interface DetailEntryProps {
   isOpen: boolean;
   editRecord: Record | null;
   initialParsed?: ParsedInput | null;
+  initialTemplate?: Template | null;
   onClose: () => void;
   onSubmit: (parsed: ParsedInput) => void;
   onUpdate: (id: string, parsed: Partial<ParsedInput>, date: string) => void;
   onDelete: (id: string) => void;
+  onSaveTemplate: (draft: TemplateDraft) => Promise<void>;
+  showTemplateSaveButton?: boolean;
 }
 
 const PAYMENT_METHOD_OPTIONS = [
@@ -36,13 +41,25 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: '계좌이체', label: '계좌이체' },
 ] as const;
 
-function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubmit, onUpdate, onDelete }: DetailEntryProps) {
+function DetailEntry({
+  isOpen,
+  editRecord,
+  initialParsed = null,
+  initialTemplate = null,
+  onClose,
+  onSubmit,
+  onUpdate,
+  onDelete,
+  onSaveTemplate,
+  showTemplateSaveButton = true,
+}: DetailEntryProps) {
   const [isIncome, setIsIncome] = useState(false);
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
   const [method, setMethod] = useState<PaymentMethod | ''>('');
   const [category, setCategory] = useState('');
   const [date, setDate] = useState('');
+  const [showTemplateSaveModal, setShowTemplateSaveModal] = useState(false);
   const { isMobile, keyboardInset } = useDialogViewport(isOpen);
   const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
@@ -59,14 +76,28 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
       setDate(editRecord.date);
     } else if (isOpen) {
       // 새 기록 모드 - 초기화
-      setIsIncome((initialParsed?.amount ?? -1) > 0);
-      setAmount(initialParsed?.amount ? Math.abs(initialParsed.amount).toString() : '');
-      setMemo(initialParsed?.memo || '');
-      setMethod((initialParsed?.method as PaymentMethod) || '');
-      setCategory(initialParsed?.category || '');
+      if (initialTemplate) {
+        setIsIncome(initialTemplate.type === 'income');
+        setAmount(initialTemplate.amount !== null ? Math.abs(initialTemplate.amount).toString() : '');
+        setMemo(initialTemplate.memo || '');
+        setMethod((initialTemplate.method as PaymentMethod) || '');
+        setCategory(initialTemplate.category || '');
+      } else {
+        setIsIncome((initialParsed?.amount ?? -1) > 0);
+        setAmount(initialParsed?.amount ? Math.abs(initialParsed.amount).toString() : '');
+        setMemo(initialParsed?.memo || '');
+        setMethod((initialParsed?.method as PaymentMethod) || '');
+        setCategory(initialParsed?.category || '');
+      }
       setDate(getTodayDate());
     }
-  }, [editRecord, isOpen, initialParsed]);
+  }, [editRecord, isOpen, initialParsed, initialTemplate]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setShowTemplateSaveModal(false);
+    }
+  }, [isOpen]);
 
   // 수입/지출 전환 시 카테고리 리셋
   useEffect(() => {
@@ -190,6 +221,28 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
     }
   };
 
+  const handleTemplateSave = async (payload: { name: string; includeAmount: boolean }) => {
+    const trimmedMemo = memo.trim();
+    const selectedMethod = method || null;
+    const selectedCategory = category.trim() || null;
+    const hasAmount = numAmount > 0;
+    const finalAmount = payload.includeAmount && hasAmount ? parsedAmount : null;
+
+    if (!finalAmount && !trimmedMemo && !selectedMethod && !selectedCategory) {
+      await showAlert('템플릿에 저장할 값을 1개 이상 입력해주세요.');
+      return;
+    }
+
+    await onSaveTemplate({
+      name: payload.name,
+      type: isIncome ? 'income' : 'expense',
+      amount: finalAmount,
+      memo: trimmedMemo || null,
+      method: selectedMethod,
+      category: selectedCategory,
+    });
+  };
+
   return (
     <ModalShell
       open={isOpen}
@@ -208,15 +261,26 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
           <h3 className="text-lg font-semibold text-gray-900">
             {isEditMode ? '기록 수정' : '상세 기록'}
           </h3>
-          {isEditMode && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-            >
-              삭제
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {showTemplateSaveButton && (
+              <button
+                type="button"
+                onClick={() => setShowTemplateSaveModal(true)}
+                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                템플릿 저장
+              </button>
+            )}
+            {isEditMode && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              >
+                삭제
+              </button>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleFormSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -355,8 +419,16 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
                 {isEditMode ? '수정' : '기록하기'}
               </button>
             </div>
-          </div>
+      </div>
         </form>
+      {showTemplateSaveButton && (
+        <TemplateSaveModal
+          isOpen={showTemplateSaveModal}
+          hasAmount={numAmount > 0}
+          onClose={() => setShowTemplateSaveModal(false)}
+          onSubmit={handleTemplateSave}
+        />
+      )}
     </ModalShell>
   );
 }
