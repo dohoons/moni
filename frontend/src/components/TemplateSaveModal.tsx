@@ -40,6 +40,7 @@ function TemplateSaveModal({ isOpen, hasAmount, onClose, onAfterClose, onSubmit 
       onBackdropClick={onClose}
       overlayClassName="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
       panelClassName="w-full max-w-none rounded-t-2xl bg-white shadow-xl sm:max-w-sm sm:rounded-2xl"
+      adjustForViewport
     >
       <div className="border-b border-gray-200 px-5 py-4">
         <h3 className="text-base font-semibold text-gray-900">템플릿 저장</h3>
