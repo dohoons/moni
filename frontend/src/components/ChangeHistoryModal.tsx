@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import {
   clearChangeHistory,
   getChangeHistory,
@@ -20,7 +19,6 @@ function ChangeHistoryModal({ isOpen, onClose, onAfterClose, onRestore }: Change
   const [entries, setEntries] = useState<ChangeHistoryEntry[]>([]);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   useEffect(() => {
     if (isOpen) {
@@ -137,16 +135,12 @@ function ChangeHistoryModal({ isOpen, onClose, onAfterClose, onRestore }: Change
       open={isOpen}
       onAfterClose={onAfterClose}
       onBackdropClick={onClose}
-      overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-      panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-lg sm:rounded-2xl"
-      panelRef={panelRef}
-      panelStyle={panelStyle}
+      variant="sheet"
+      sheetPanelMaxWidthClassName="sm:max-w-lg"
       adjustForViewport
-      panelProps={panelTouch}
+      pullToClose
     >
-      <div className="flex justify-center px-6 pb-1 pt-3 sm:hidden">
-        <div className="h-1.5 w-10 rounded-full bg-gray-300" />
-      </div>
+      <ModalShell.SheetHandle />
       <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
         <h3 className="text-lg font-semibold text-gray-900">변경 이력</h3>
         <div className="flex items-center gap-2">

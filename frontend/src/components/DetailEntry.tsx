@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { type ParsedInput } from '../lib/parser';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, type PaymentMethod } from '../constants';
-import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { useDialogViewport } from '../hooks/useDialogViewport';
 import { showAlert, showConfirm } from '../services/message-dialog';
 import type { Template, TemplateDraft } from '../services/api';
@@ -119,7 +118,6 @@ function DetailEntryInner({
   const [category, setCategory] = useState(initialFormState.category);
   const [date, setDate] = useState(initialFormState.date);
   const { isMobile } = useDialogViewport(isOpen);
-  const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   const isEditMode = editRecord !== null;
 
@@ -260,16 +258,11 @@ function DetailEntryInner({
       open={isOpen}
       onAfterClose={onAfterClose}
       onBackdropClick={onClose}
-      overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-      panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-md sm:rounded-2xl"
-      panelRef={panelRef}
-      panelStyle={panelStyle}
+      variant="sheet"
       adjustForViewport
-      panelProps={panelTouch}
+      pullToClose
     >
-        <div className="flex justify-center px-6 pt-3 pb-1 sm:hidden">
-          <div className="h-1.5 w-10 rounded-full bg-gray-300" />
-        </div>
+        <ModalShell.SheetHandle />
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
           <h3 className="text-lg font-semibold text-gray-900">
@@ -416,7 +409,7 @@ function DetailEntryInner({
           </div>
 
           {/* Footer */}
-          <div className="flex flex-shrink-0 gap-3 border-t border-gray-200 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:py-4">
+          <ModalShell.Footer className="flex flex-shrink-0 gap-3">
             <div className="flex flex-1 gap-3">
               <button
                 type="button"
@@ -433,7 +426,7 @@ function DetailEntryInner({
                 {isEditMode ? '수정' : '기록하기'}
               </button>
             </div>
-      </div>
+          </ModalShell.Footer>
         </form>
     </ModalShell>
   );

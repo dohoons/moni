@@ -245,7 +245,7 @@ function TemplatePickerModal({
           ))}
       </div>
 
-      <div className="border-t border-gray-200 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:py-3">
+      <ModalShell.Footer className="border-gray-200 px-4 pt-3 sm:py-3">
         <button
           type="button"
           onClick={onClose}
@@ -253,7 +253,7 @@ function TemplatePickerModal({
         >
           닫기
         </button>
-      </div>
+      </ModalShell.Footer>
     </ModalShell>
   );
 }

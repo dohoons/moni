@@ -68,7 +68,7 @@ function TemplateSaveModal({ isOpen, hasAmount, onClose, onAfterClose, onSubmit 
           금액 포함해서 저장
         </label>
       </div>
-      <div className="flex gap-3 border-t border-gray-200 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:py-4">
+      <ModalShell.Footer className="flex gap-3 border-gray-200 px-5">
         <button
           type="button"
           onClick={onClose}
@@ -84,7 +84,7 @@ function TemplateSaveModal({ isOpen, hasAmount, onClose, onAfterClose, onSubmit 
         >
           저장
         </button>
-      </div>
+      </ModalShell.Footer>
     </ModalShell>
   );
 }

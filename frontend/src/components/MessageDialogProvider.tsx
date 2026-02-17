@@ -101,7 +101,7 @@ function MessageDialogOverlay({
           </p>
         </div>
       )}
-      <div className="border-t border-gray-100 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-5 sm:py-4">
+      <ModalShell.Footer className="border-gray-100 px-6 sm:px-5">
         {type === 'confirm' && (
           <div className="flex gap-3">
             <button
@@ -133,7 +133,7 @@ function MessageDialogOverlay({
             </button>
           </div>
         )}
-      </div>
+      </ModalShell.Footer>
     </ModalShell>
   );
 }

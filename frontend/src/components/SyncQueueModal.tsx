@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { getPendingRecords, clearPendingRecords, removePendingRecordByIndex, getPendingRecordByIndex, removePendingRecord, updateLastSyncTime, isOnline } from '../services/sync';
-import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { showAlert, showConfirm } from '../services/message-dialog';
 import { getTodayDate } from '../lib/date';
 import ModalShell from './ModalShell';
@@ -23,7 +22,6 @@ interface SyncQueueModalProps {
 function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: SyncQueueModalProps) {
   const [records, setRecords] = useState(getPendingRecords());
   const [syncingIndex, setSyncingIndex] = useState<number | null>(null);
-  const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   // 모달이 열릴 때마다 레코드 새로고침
   useEffect(() => {
@@ -260,16 +258,11 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
       open={isOpen}
       onAfterClose={onAfterClose}
       onBackdropClick={onClose}
-      overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
-      panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-md sm:rounded-2xl"
-      panelRef={panelRef}
-      panelStyle={panelStyle}
+      variant="sheet"
       adjustForViewport
-      panelProps={panelTouch}
+      pullToClose
     >
-        <div className="flex justify-center px-6 pt-3 pb-1 sm:hidden">
-          <div className="h-1.5 w-10 rounded-full bg-gray-300" />
-        </div>
+        <ModalShell.SheetHandle />
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-lg font-semibold text-gray-900">
@@ -340,14 +333,14 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
 
         {/* Footer */}
         {records.length > 0 && (
-          <div className="border-t border-gray-200 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:py-4">
+          <ModalShell.Footer>
             <button
               onClick={handleClearAll}
               className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-100"
             >
               모두 취소
             </button>
-          </div>
+          </ModalShell.Footer>
         )}
     </ModalShell>
   );
