@@ -4,7 +4,7 @@
  * 사용자별 시트 생성 및 스키마 관리
  */
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 9;
 const SPREADSHEET_ID = '1HF7btOFx-5RGanlxw7cYWnQv5vx1murQEuy9lUxbIY0';
 
 /**
@@ -59,7 +59,7 @@ function getSchemaVersion(metaSheet) {
 }
 
 /**
- * 최신 스키마로 초기화 (V7)
+ * 최신 스키마로 초기화 (V9)
  */
 function initializeSchema(spreadsheet) {
   // Data 시트 생성 및 헤더 설정
@@ -104,8 +104,77 @@ function initializeSchema(spreadsheet) {
     methodsSheet.appendRow(['transfer', '계좌이체']);
   }
 
+  // Templates 시트 생성
+  const templatesSheet = getOrCreateSheet(spreadsheet, 'Templates');
+  if (templatesSheet.getLastRow() === 0) {
+    templatesSheet.appendRow([
+      'id',
+      'name',
+      'type',
+      'amount',
+      'memo',
+      'method',
+      'category',
+      'useCount',
+      'lastUsedAt',
+      'created',
+      'updated',
+      'sortOrder'
+    ]);
+  }
+  migrateTemplatesSheetToV9(templatesSheet);
+
   // 데이터 유효성 적용
   applyDataValidation(dataSheet, categoriesSheet, methodsSheet);
+}
+
+/**
+ * Templates 시트를 V9 스키마로 마이그레이션
+ *
+ * V8: id, name, type, amount, memo, method, category, useCount, lastUsedAt, created, updated
+ * V9: id, name, type, amount, memo, method, category, useCount, lastUsedAt, created, updated, sortOrder
+ */
+function migrateTemplatesSheetToV9(templatesSheet) {
+  const headerWidth = Math.max(templatesSheet.getLastColumn(), 11);
+  const headers = templatesSheet.getRange(1, 1, 1, headerWidth).getValues()[0];
+  const expectedPrefix = [
+    'id',
+    'name',
+    'type',
+    'amount',
+    'memo',
+    'method',
+    'category',
+    'useCount',
+    'lastUsedAt',
+    'created',
+    'updated',
+  ];
+
+  const isExpectedPrefix = expectedPrefix.every((name, index) => headers[index] === name);
+  if (!isExpectedPrefix) {
+    return;
+  }
+
+  if (headers[11] !== 'sortOrder') {
+    templatesSheet.getRange(1, 12).setValue('sortOrder');
+  }
+
+  const lastRow = templatesSheet.getLastRow();
+  if (lastRow <= 1) {
+    return;
+  }
+
+  const sortValues = templatesSheet.getRange(2, 12, lastRow - 1, 1).getValues();
+  const normalized = sortValues.map((row, index) => {
+    const value = Number(row[0]);
+    if (Number.isFinite(value) && value > 0) {
+      return [value];
+    }
+    return [index + 1];
+  });
+
+  templatesSheet.getRange(2, 12, lastRow - 1, 1).setValues(normalized);
 }
 
 /**

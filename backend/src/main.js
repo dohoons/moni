@@ -69,6 +69,30 @@ function handleRequest(e) {
         result = handleListRecordsWithBody(bodyData, accessToken);
         break;
 
+      case '/api/templates':
+        result = handleListTemplatesWithBody(bodyData, accessToken);
+        break;
+
+      case '/api/template':
+        result = handleCreateTemplateWithBody(bodyData, accessToken);
+        break;
+
+      case '/api/template/update':
+        result = handleUpdateTemplateWithBody(bodyData, accessToken);
+        break;
+
+      case '/api/template/delete':
+        result = handleDeleteTemplateWithBody(bodyData, accessToken);
+        break;
+
+      case '/api/template/use':
+        result = handleMarkTemplateUsedWithBody(bodyData, accessToken);
+        break;
+
+      case '/api/template/reorder':
+        result = handleReorderTemplatesWithBody(bodyData, accessToken);
+        break;
+
       case '/api/stats':
         result = handleGetStats({ parameter: bodyData || {} }, accessToken);
         break;
@@ -111,6 +135,88 @@ function handleListRecordsWithBody(bodyData, accessToken) {
   };
 
   return handleListRecords(mockEvent, accessToken);
+}
+
+/**
+ * 본문 데이터로 템플릿 목록 조회
+ */
+function handleListTemplatesWithBody(_bodyData, accessToken) {
+  return handleListTemplates({ parameter: {} }, accessToken);
+}
+
+/**
+ * 본문 데이터로 템플릿 생성
+ */
+function handleCreateTemplateWithBody(bodyData, accessToken) {
+  if (!bodyData) {
+    return errorResponse('Missing request body');
+  }
+
+  return handleCreateTemplate({
+    postData: {
+      contents: JSON.stringify(bodyData)
+    }
+  }, accessToken);
+}
+
+/**
+ * 본문 데이터로 템플릿 수정
+ */
+function handleUpdateTemplateWithBody(bodyData, accessToken) {
+  if (!bodyData) {
+    return errorResponse('Missing request body');
+  }
+
+  return handleUpdateTemplate({
+    postData: {
+      contents: JSON.stringify(bodyData)
+    }
+  }, accessToken);
+}
+
+/**
+ * 본문 데이터로 템플릿 삭제
+ */
+function handleDeleteTemplateWithBody(bodyData, accessToken) {
+  if (!bodyData) {
+    return errorResponse('Missing request body');
+  }
+
+  return handleDeleteTemplate({
+    postData: {
+      contents: JSON.stringify(bodyData)
+    }
+  }, accessToken);
+}
+
+/**
+ * 본문 데이터로 템플릿 사용 처리
+ */
+function handleMarkTemplateUsedWithBody(bodyData, accessToken) {
+  if (!bodyData) {
+    return errorResponse('Missing request body');
+  }
+
+  return handleMarkTemplateUsed({
+    postData: {
+      contents: JSON.stringify(bodyData)
+    }
+  }, accessToken);
+}
+
+/**
+ * 본문 데이터로 템플릿 순서 재정렬
+ */
+function handleReorderTemplatesWithBody(bodyData, accessToken) {
+  if (!bodyData) {
+    return errorResponse('Missing request body');
+  }
+
+  return handleReorderTemplates({
+    postData: {
+      contents: JSON.stringify(bodyData)
+    }
+  }, accessToken);
 }
 
 /**
