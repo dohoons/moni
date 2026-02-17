@@ -38,6 +38,17 @@ function createAbortError() {
   return error;
 }
 
+function orderTemplates(templates: Template[], orderedTemplateIds: string[] | null) {
+  if (!orderedTemplateIds) return templates;
+  const byId = new Map(templates.map((item) => [item.id, item]));
+  const ordered = orderedTemplateIds
+    .map((id) => byId.get(id))
+    .filter(Boolean) as Template[];
+  const orderedIdSet = new Set(orderedTemplateIds);
+  const remaining = templates.filter((item) => !orderedIdSet.has(item.id));
+  return [...ordered, ...remaining];
+}
+
 export function useTemplatePicker() {
   const openTemplatePickerModal = useCallback(
     () =>
@@ -78,8 +89,9 @@ function TemplatePickerModal({
   const [skipClickId, setSkipClickId] = useState<string | null>(null);
   const [localSavingOrder, setLocalSavingOrder] = useState(false);
   const [localDeletingId, setLocalDeletingId] = useState<string | null>(null);
-  const orderedTemplatesRef = useRef<Template[]>(templates);
   const dragPointerIdRef = useRef<number | null>(null);
+  const lastHoverTargetIdRef = useRef<string | null>(null);
+  const lastMovedOrderIdsRef = useRef<string[] | null>(null);
   const didMoveRef = useRef(false);
   const reorderStateRef = useRef<ReorderState>({
     debounceTimer: null,
@@ -89,20 +101,11 @@ function TemplatePickerModal({
     pending: null,
   });
 
-  const filtered = useMemo(() => {
-    if (!orderedTemplateIds) return templates;
-    const byId = new Map(templates.map((item) => [item.id, item]));
-    const ordered = orderedTemplateIds
-      .map((id) => byId.get(id))
-      .filter(Boolean) as Template[];
-    const orderedIdSet = new Set(orderedTemplateIds);
-    const remaining = templates.filter((item) => !orderedIdSet.has(item.id));
-    return [...ordered, ...remaining];
-  }, [orderedTemplateIds, templates]);
-
-  useEffect(() => {
-    orderedTemplatesRef.current = filtered;
-  }, [filtered]);
+  const filtered = useMemo(
+    () => orderTemplates(templates, orderedTemplateIds),
+    [orderedTemplateIds, templates]
+  );
+  const orderedIds = useMemo(() => filtered.map((item) => item.id), [filtered]);
   const canDrag = !isLoading && !errorMessage;
   const savingOrder = localSavingOrder;
   const activeDeletingId = localDeletingId;
@@ -118,23 +121,27 @@ function TemplatePickerModal({
     return `${Math.abs(template.amount).toLocaleString()}원`;
   };
 
-  const moveTemplate = (sourceId: string, targetId: string, shouldPersist: boolean = true) => {
+  const moveTemplate = (sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;
 
-    const current = orderedTemplatesRef.current;
-    const sourceIndex = current.findIndex((item) => item.id === sourceId);
-    const targetIndex = current.findIndex((item) => item.id === targetId);
-    if (sourceIndex === -1 || targetIndex === -1) return;
+    setOrderedTemplateIds((previousIds) => {
+      const current = orderTemplates(templates, previousIds);
+      const sourceIndex = current.findIndex((item) => item.id === sourceId);
+      const targetIndex = current.findIndex((item) => item.id === targetId);
+      if (sourceIndex === -1 || targetIndex === -1) return previousIds;
 
-    const next = [...current];
-    const [moved] = next.splice(sourceIndex, 1);
-    next.splice(targetIndex, 0, moved);
-    orderedTemplatesRef.current = next;
-    setOrderedTemplateIds(next.map((item) => item.id));
-
-    if (!shouldPersist) return;
-    void persistReorder(next.map((item) => item.id));
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      const nextIds = next.map((item) => item.id);
+      lastMovedOrderIdsRef.current = nextIds;
+      return nextIds;
+    });
   };
+
+  useEffect(() => {
+    lastMovedOrderIdsRef.current = null;
+  }, [templates]);
 
   const handleTemplateClick = (template: Template) => {
     if (skipClickId === template.id) {
@@ -270,9 +277,10 @@ function TemplatePickerModal({
     void Promise.resolve(deleteTemplate(template))
       .then((deleted) => {
         if (!deleted) return;
-        const next = orderedTemplatesRef.current.filter((item) => item.id !== template.id);
-        orderedTemplatesRef.current = next;
-        setOrderedTemplateIds(next.map((item) => item.id));
+        setOrderedTemplateIds((previous) => {
+          if (!previous) return previous;
+          return previous.filter((id) => id !== template.id);
+        });
       })
       .finally(() => {
         setLocalDeletingId(null);
@@ -338,6 +346,8 @@ function TemplatePickerModal({
                 onPointerDown={(event) => {
                   if (!canDrag) return;
                   dragPointerIdRef.current = event.pointerId;
+                  lastHoverTargetIdRef.current = null;
+                  lastMovedOrderIdsRef.current = null;
                   didMoveRef.current = false;
                   setDraggingId(template.id);
                   event.currentTarget.setPointerCapture(event.pointerId);
@@ -352,8 +362,10 @@ function TemplatePickerModal({
                   const targetNode = hovered?.closest('[data-template-id]');
                   const targetId = targetNode?.getAttribute('data-template-id');
                   if (!targetId || targetId === draggingId) return;
+                  if (lastHoverTargetIdRef.current === targetId) return;
+                  lastHoverTargetIdRef.current = targetId;
                   didMoveRef.current = true;
-                  moveTemplate(draggingId, targetId, false);
+                  moveTemplate(draggingId, targetId);
                   event.preventDefault();
                   event.stopPropagation();
                 }}
@@ -361,18 +373,21 @@ function TemplatePickerModal({
                   if (dragPointerIdRef.current !== event.pointerId) return;
                   const moved = didMoveRef.current;
                   dragPointerIdRef.current = null;
+                  lastHoverTargetIdRef.current = null;
                   didMoveRef.current = false;
                   setDraggingId(null);
                   if (moved) {
-                    const ids = orderedTemplatesRef.current.map((item) => item.id);
                     setSkipClickId(template.id);
-                    persistReorder(ids);
+                    persistReorder(lastMovedOrderIdsRef.current ?? orderedIds);
                   }
+                  lastMovedOrderIdsRef.current = null;
                   event.preventDefault();
                   event.stopPropagation();
                 }}
                 onPointerCancel={() => {
                   dragPointerIdRef.current = null;
+                  lastHoverTargetIdRef.current = null;
+                  lastMovedOrderIdsRef.current = null;
                   didMoveRef.current = false;
                   setDraggingId(null);
                 }}
