@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { OverlayProvider } from 'overlay-kit';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { initAutoRefresh } from './services/google-oauth';
 import Login from './pages/Login';
@@ -42,13 +43,14 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router basename="/moni">
-        <AuthProvider>
-          <MessageDialogProvider>
+      <OverlayProvider>
+        <Router basename="/moni">
+          <AuthProvider>
+            <MessageDialogProvider />
             <AppContent />
-          </MessageDialogProvider>
-        </AuthProvider>
-      </Router>
+          </AuthProvider>
+        </Router>
+      </OverlayProvider>
     </QueryClientProvider>
   );
 }
