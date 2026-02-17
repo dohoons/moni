@@ -34,6 +34,19 @@ interface DetailEntryProps {
   showTemplateSaveButton?: boolean;
 }
 
+interface DetailFormState {
+  isIncome: boolean;
+  amount: string;
+  memo: string;
+  method: PaymentMethod | '';
+  category: string;
+  date: string;
+}
+
+type DetailEntryInnerProps = Omit<DetailEntryProps, 'initialParsed' | 'initialTemplate'> & {
+  initialFormState: DetailFormState;
+};
+
 const PAYMENT_METHOD_OPTIONS = [
   { value: '신용카드', label: '신용카드' },
   { value: '체크카드', label: '체크카드' },
@@ -41,57 +54,69 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: '계좌이체', label: '계좌이체' },
 ] as const;
 
-function DetailEntry({
+function buildInitialFormState({
+  editRecord,
+  initialParsed,
+  initialTemplate,
+}: {
+  editRecord: Record | null;
+  initialParsed: ParsedInput | null;
+  initialTemplate: Template | null;
+}): DetailFormState {
+  if (editRecord) {
+    return {
+      isIncome: editRecord.amount > 0,
+      amount: Math.abs(editRecord.amount).toString(),
+      memo: editRecord.memo || '',
+      method: (editRecord.method as PaymentMethod) || '',
+      category: editRecord.category || '',
+      date: editRecord.date,
+    };
+  }
+
+  if (initialTemplate) {
+    return {
+      isIncome: initialTemplate.type === 'income',
+      amount: initialTemplate.amount !== null ? Math.abs(initialTemplate.amount).toString() : '',
+      memo: initialTemplate.memo || '',
+      method: (initialTemplate.method as PaymentMethod) || '',
+      category: initialTemplate.category || '',
+      date: getTodayDate(),
+    };
+  }
+
+  return {
+    isIncome: (initialParsed?.amount ?? -1) > 0,
+    amount: initialParsed?.amount ? Math.abs(initialParsed.amount).toString() : '',
+    memo: initialParsed?.memo || '',
+    method: (initialParsed?.method as PaymentMethod) || '',
+    category: initialParsed?.category || '',
+    date: getTodayDate(),
+  };
+}
+
+function DetailEntryInner({
   isOpen,
   editRecord,
-  initialParsed = null,
-  initialTemplate = null,
   onClose,
   onSubmit,
   onUpdate,
   onDelete,
   onSaveTemplate,
   showTemplateSaveButton = true,
-}: DetailEntryProps) {
-  const [isIncome, setIsIncome] = useState(false);
-  const [amount, setAmount] = useState('');
-  const [memo, setMemo] = useState('');
-  const [method, setMethod] = useState<PaymentMethod | ''>('');
-  const [category, setCategory] = useState('');
-  const [date, setDate] = useState('');
+  initialFormState,
+}: DetailEntryInnerProps) {
+  const [isIncome, setIsIncome] = useState(initialFormState.isIncome);
+  const [amount, setAmount] = useState(initialFormState.amount);
+  const [memo, setMemo] = useState(initialFormState.memo);
+  const [method, setMethod] = useState<PaymentMethod | ''>(initialFormState.method);
+  const [category, setCategory] = useState(initialFormState.category);
+  const [date, setDate] = useState(initialFormState.date);
   const [showTemplateSaveModal, setShowTemplateSaveModal] = useState(false);
   const { isMobile, keyboardInset } = useDialogViewport(isOpen);
   const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   const isEditMode = editRecord !== null;
-
-  // 초기 데이터 설정 (편집 모드)
-  useEffect(() => {
-    if (editRecord) {
-      setIsIncome(editRecord.amount > 0);
-      setAmount(Math.abs(editRecord.amount).toString());
-      setMemo(editRecord.memo || '');
-      setMethod((editRecord.method as PaymentMethod) || '');
-      setCategory(editRecord.category || '');
-      setDate(editRecord.date);
-    } else if (isOpen) {
-      // 새 기록 모드 - 초기화
-      if (initialTemplate) {
-        setIsIncome(initialTemplate.type === 'income');
-        setAmount(initialTemplate.amount !== null ? Math.abs(initialTemplate.amount).toString() : '');
-        setMemo(initialTemplate.memo || '');
-        setMethod((initialTemplate.method as PaymentMethod) || '');
-        setCategory(initialTemplate.category || '');
-      } else {
-        setIsIncome((initialParsed?.amount ?? -1) > 0);
-        setAmount(initialParsed?.amount ? Math.abs(initialParsed.amount).toString() : '');
-        setMemo(initialParsed?.memo || '');
-        setMethod((initialParsed?.method as PaymentMethod) || '');
-        setCategory(initialParsed?.category || '');
-      }
-      setDate(getTodayDate());
-    }
-  }, [editRecord, isOpen, initialParsed, initialTemplate]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -430,6 +455,49 @@ function DetailEntry({
         />
       )}
     </ModalShell>
+  );
+}
+
+function DetailEntry({
+  isOpen,
+  editRecord,
+  initialParsed = null,
+  initialTemplate = null,
+  onClose,
+  onSubmit,
+  onUpdate,
+  onDelete,
+  onSaveTemplate,
+  showTemplateSaveButton = true,
+}: DetailEntryProps) {
+  const initialFormState = buildInitialFormState({
+    editRecord,
+    initialParsed,
+    initialTemplate,
+  });
+
+  const sourceKey = editRecord
+    ? `edit:${editRecord.id}`
+    : initialTemplate
+      ? `template:${initialTemplate.id}`
+      : initialParsed
+        ? 'parsed'
+        : 'empty';
+  const formKey = `${isOpen ? 'open' : 'closed'}|${sourceKey}`;
+
+  return (
+    <DetailEntryInner
+      key={formKey}
+      isOpen={isOpen}
+      editRecord={editRecord}
+      onClose={onClose}
+      onSubmit={onSubmit}
+      onUpdate={onUpdate}
+      onDelete={onDelete}
+      onSaveTemplate={onSaveTemplate}
+      showTemplateSaveButton={showTemplateSaveButton}
+      initialFormState={initialFormState}
+    />
   );
 }
 
