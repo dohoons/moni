@@ -118,21 +118,16 @@ function DetailEntryInner({
 
   const isEditMode = editRecord !== null;
 
-  useEffect(() => {
-    if (!isOpen) {
-      setShowTemplateSaveModal(false);
-    }
-  }, [isOpen]);
+  const handleTypeChange = (nextIsIncome: boolean) => {
+    setIsIncome(nextIsIncome);
 
-  // 수입/지출 전환 시 카테고리 리셋
-  useEffect(() => {
-    if (category) {
-      const validCategories = isIncome ? (INCOME_CATEGORIES as readonly string[]) : (EXPENSE_CATEGORIES as readonly string[]);
-      if (!(validCategories as readonly string[]).includes(category)) {
-        setCategory('');
-      }
+    if (!category) return;
+
+    const validCategories = nextIsIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    if (!(validCategories as readonly string[]).includes(category)) {
+      setCategory('');
     }
-  }, [isIncome, category]);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -347,7 +342,7 @@ function DetailEntryInner({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setIsIncome(false)}
+                onClick={() => handleTypeChange(false)}
                 className={`flex-1 rounded-lg px-4 py-2.5 font-medium transition-all ${
                   !isIncome
                     ? 'bg-red-600 text-white shadow-md'
@@ -358,7 +353,7 @@ function DetailEntryInner({
               </button>
               <button
                 type="button"
-                onClick={() => setIsIncome(true)}
+                onClick={() => handleTypeChange(true)}
                 className={`flex-1 rounded-lg px-4 py-2.5 font-medium transition-all ${
                   isIncome
                     ? 'bg-green-600 text-white shadow-md'
@@ -448,7 +443,7 @@ function DetailEntryInner({
         </form>
       {showTemplateSaveButton && (
         <TemplateSaveModal
-          isOpen={showTemplateSaveModal}
+          isOpen={isOpen && showTemplateSaveModal}
           hasAmount={numAmount > 0}
           onClose={() => setShowTemplateSaveModal(false)}
           onSubmit={handleTemplateSave}
