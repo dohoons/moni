@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { ChangeEvent, CSSProperties, FormEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { type ParsedInput } from '../lib/parser';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, type PaymentMethod } from '../constants';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
@@ -118,7 +118,7 @@ function DetailEntryInner({
   const [method, setMethod] = useState<PaymentMethod | ''>(initialFormState.method);
   const [category, setCategory] = useState(initialFormState.category);
   const [date, setDate] = useState(initialFormState.date);
-  const { isMobile, keyboardInset } = useDialogViewport(isOpen);
+  const { isMobile } = useDialogViewport(isOpen);
   const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   const isEditMode = editRecord !== null;
@@ -157,12 +157,6 @@ function DetailEntryInner({
       window.removeEventListener('focusin', handleFocusIn);
     };
   }, [isOpen, isMobile]);
-
-  const dialogStyle: CSSProperties = {
-    ...panelStyle,
-    marginBottom: isMobile ? keyboardInset : undefined,
-    maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
-  };
 
   const handleFormSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -269,7 +263,8 @@ function DetailEntryInner({
       overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-md sm:rounded-2xl"
       panelRef={panelRef}
-      panelStyle={dialogStyle}
+      panelStyle={panelStyle}
+      adjustForViewport
       panelProps={panelTouch}
     >
         <div className="flex justify-center px-6 pt-3 pb-1 sm:hidden">

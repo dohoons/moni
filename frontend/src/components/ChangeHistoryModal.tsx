@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
-import { useDialogViewport } from '../hooks/useDialogViewport';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import {
   clearChangeHistory,
@@ -22,7 +20,6 @@ function ChangeHistoryModal({ isOpen, onClose, onAfterClose, onRestore }: Change
   const [entries, setEntries] = useState<ChangeHistoryEntry[]>([]);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const { isMobile, keyboardInset } = useDialogViewport(isOpen);
   const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   useEffect(() => {
@@ -30,12 +27,6 @@ function ChangeHistoryModal({ isOpen, onClose, onAfterClose, onRestore }: Change
       setEntries(getChangeHistory());
     }
   }, [isOpen]);
-
-  const dialogStyle: CSSProperties = {
-    ...panelStyle,
-    marginBottom: isMobile ? keyboardInset : undefined,
-    maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
-  };
 
   const handleRestore = async (entry: ChangeHistoryEntry) => {
     setRestoringId(entry.id);
@@ -149,7 +140,8 @@ function ChangeHistoryModal({ isOpen, onClose, onAfterClose, onRestore }: Change
       overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-lg sm:rounded-2xl"
       panelRef={panelRef}
-      panelStyle={dialogStyle}
+      panelStyle={panelStyle}
+      adjustForViewport
       panelProps={panelTouch}
     >
       <div className="flex justify-center px-6 pb-1 pt-3 sm:hidden">

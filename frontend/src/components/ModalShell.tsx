@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { CSSProperties, HTMLAttributes, ReactNode, Ref } from 'react';
 import { RemoveScroll } from 'react-remove-scroll';
+import { useModalViewportAdjustment } from '../hooks/useModalViewportAdjustment';
 
 const modalStack: symbol[] = [];
 
@@ -35,6 +36,8 @@ interface ModalShellProps {
   overlayStyle?: CSSProperties;
   panelProps?: HTMLAttributes<HTMLDivElement>;
   allowPinchZoom?: boolean;
+  adjustForViewport?: boolean;
+  viewportBottomGap?: number;
 }
 
 function ModalShell({
@@ -51,6 +54,8 @@ function ModalShell({
   overlayStyle,
   panelProps,
   allowPinchZoom = true,
+  adjustForViewport = false,
+  viewportBottomGap = 8,
 }: ModalShellProps) {
   const EXIT_DURATION_MS = 150;
   const [isRendered, setIsRendered] = useState(open);
@@ -61,6 +66,11 @@ function ModalShell({
   });
   const runEscClose = useEffectEvent(() => {
     (onEsc ?? onBackdropClick)();
+  });
+  const viewportStyle = useModalViewportAdjustment({
+    open,
+    enabled: adjustForViewport,
+    bottomGap: viewportBottomGap,
   });
   const { onClick: panelOnClick, className: panelExtraClassName, ...restPanelProps } = panelProps ?? {};
 
@@ -138,6 +148,9 @@ function ModalShell({
     transform: open ? 'none' : 'translateY(24px)',
     transition: `transform ${EXIT_DURATION_MS}ms ease, opacity ${EXIT_DURATION_MS}ms ease`,
   };
+  const mergedPanelStyle: CSSProperties | undefined = viewportStyle
+    ? { ...panelStyle, ...viewportStyle }
+    : panelStyle;
 
   return (
     <RemoveScroll enabled={open} allowPinchZoom={allowPinchZoom}>
@@ -147,7 +160,7 @@ function ModalShell({
             {...restPanelProps}
             className={panelExtraClassName ? `${panelClassName} ${panelExtraClassName}` : panelClassName}
             ref={panelRef}
-            style={panelStyle}
+            style={mergedPanelStyle}
             onClick={handlePanelClick}
           >
             {children}

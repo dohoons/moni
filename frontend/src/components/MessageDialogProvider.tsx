@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { overlay } from 'overlay-kit';
-import { useDialogViewport } from '../hooks/useDialogViewport';
 import {
   setMessageDialogHandlers,
   type MessageDialogOptions,
@@ -33,7 +32,6 @@ function MessageDialogOverlay({
   onAfterClose,
 }: MessageDialogOverlayProps) {
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
-  const { isMobile, keyboardInset } = useDialogViewport(isOpen);
   const isDangerTone = options?.tone === 'danger';
 
   const primaryButtonClass = isDangerTone
@@ -84,10 +82,7 @@ function MessageDialogOverlay({
       }}
       overlayClassName="fixed inset-0 z-[2000] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       panelClassName="w-full max-w-none rounded-t-2xl bg-white shadow-xl ring-1 ring-black/5 sm:max-w-sm sm:rounded-2xl"
-      panelStyle={{
-        marginBottom: isMobile ? keyboardInset : undefined,
-        maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
-      }}
+      adjustForViewport
       panelProps={{
         role: type === 'alert' ? 'alertdialog' : 'dialog',
         'aria-modal': true,

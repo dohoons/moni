@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import type { CSSProperties } from 'react';
 import { api } from '../services/api';
 import { getPendingRecords, clearPendingRecords, removePendingRecordByIndex, getPendingRecordByIndex, removePendingRecord, updateLastSyncTime, isOnline } from '../services/sync';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
-import { useDialogViewport } from '../hooks/useDialogViewport';
 import { showAlert, showConfirm } from '../services/message-dialog';
 import { getTodayDate } from '../lib/date';
 import ModalShell from './ModalShell';
@@ -25,7 +23,6 @@ interface SyncQueueModalProps {
 function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: SyncQueueModalProps) {
   const [records, setRecords] = useState(getPendingRecords());
   const [syncingIndex, setSyncingIndex] = useState<number | null>(null);
-  const { isMobile, keyboardInset } = useDialogViewport(isOpen);
   const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   // 모달이 열릴 때마다 레코드 새로고침
@@ -103,12 +100,6 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
       refreshRecords();
       onRecordsUpdated?.();
     }
-  };
-
-  const dialogStyle: CSSProperties = {
-    ...panelStyle,
-    marginBottom: isMobile ? keyboardInset : undefined,
-    maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
   };
 
   const getActionLabel = (action?: string) => {
@@ -272,7 +263,8 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
       overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-md sm:rounded-2xl"
       panelRef={panelRef}
-      panelStyle={dialogStyle}
+      panelStyle={panelStyle}
+      adjustForViewport
       panelProps={panelTouch}
     >
         <div className="flex justify-center px-6 pt-3 pb-1 sm:hidden">

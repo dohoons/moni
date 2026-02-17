@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
-import { useDialogViewport } from '../hooks/useDialogViewport';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import ModalShell from './ModalShell';
 
@@ -27,7 +25,6 @@ function YearMonthPickerModal({
 }: YearMonthPickerModalProps) {
   const [draftYear, setDraftYear] = useState(initialYear);
   const [draftMonth, setDraftMonth] = useState(initialMonth);
-  const { isMobile, keyboardInset } = useDialogViewport(isOpen);
   const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
   useEffect(() => {
@@ -35,12 +32,6 @@ function YearMonthPickerModal({
     setDraftYear(initialYear);
     setDraftMonth(initialMonth);
   }, [isOpen, initialYear, initialMonth]);
-
-  const dialogStyle: CSSProperties = {
-    ...panelStyle,
-    marginBottom: isMobile ? keyboardInset : undefined,
-    maxHeight: isMobile ? `calc(100dvh - ${8 + keyboardInset}px)` : undefined,
-  };
 
   return (
     <ModalShell
@@ -50,7 +41,8 @@ function YearMonthPickerModal({
       overlayClassName="fixed inset-0 z-30 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
       panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-sm sm:rounded-2xl"
       panelRef={panelRef}
-      panelStyle={dialogStyle}
+      panelStyle={panelStyle}
+      adjustForViewport
       panelProps={panelTouch}
     >
       <div className="flex justify-center px-5 pb-1 pt-3 sm:hidden">
