@@ -72,7 +72,7 @@ function ModalShell({
 
   const panelMotionStyle: CSSProperties = {
     opacity: open ? 1 : 0,
-    transform: open ? 'translateY(0)' : 'translateY(24px)',
+    transform: open ? 'none' : 'translateY(24px)',
     transition: `transform ${EXIT_DURATION_MS}ms ease, opacity ${EXIT_DURATION_MS}ms ease`,
   };
 
