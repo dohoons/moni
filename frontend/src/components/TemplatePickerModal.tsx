@@ -4,22 +4,24 @@ import ModalShell from './ModalShell';
 
 interface TemplatePickerModalProps {
   isOpen: boolean;
+  onAfterClose?: () => void;
   templates: Template[];
   isLoading: boolean;
-  isSavingOrder: boolean;
+  isSavingOrder?: boolean;
   deletingTemplateId?: string | null;
   errorMessage?: string;
   onClose: () => void;
   onSelect: (template: Template) => void;
-  onReorder: (ids: string[]) => void;
-  onDelete: (template: Template) => void;
+  onReorder: (ids: string[]) => void | Promise<void>;
+  onDelete: (template: Template) => boolean | Promise<boolean>;
 }
 
 function TemplatePickerModal({
   isOpen,
+  onAfterClose,
   templates,
   isLoading,
-  isSavingOrder,
+  isSavingOrder = false,
   deletingTemplateId = null,
   errorMessage,
   onClose,
@@ -30,6 +32,8 @@ function TemplatePickerModal({
   const [orderedTemplates, setOrderedTemplates] = useState<Template[]>(templates);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [skipClickId, setSkipClickId] = useState<string | null>(null);
+  const [localSavingOrder, setLocalSavingOrder] = useState(false);
+  const [localDeletingId, setLocalDeletingId] = useState<string | null>(null);
   const orderedTemplatesRef = useRef<Template[]>(templates);
   const dragPointerIdRef = useRef<number | null>(null);
   const didMoveRef = useRef(false);
@@ -44,6 +48,8 @@ function TemplatePickerModal({
 
   const filtered = useMemo(() => orderedTemplates, [orderedTemplates]);
   const canDrag = !isLoading && !errorMessage;
+  const savingOrder = isSavingOrder || localSavingOrder;
+  const activeDeletingId = localDeletingId || deletingTemplateId;
 
   const getSubtitle = (template: Template) => {
     const parts = [template.memo, template.method, template.category].filter(Boolean);
@@ -80,9 +86,31 @@ function TemplatePickerModal({
     onSelect(template);
   };
 
+  const persistReorder = (ids: string[]) => {
+    setLocalSavingOrder(true);
+    void Promise.resolve(onReorder(ids)).finally(() => {
+      setLocalSavingOrder(false);
+    });
+  };
+
+  const handleDeleteTemplate = (template: Template) => {
+    if (activeDeletingId) return;
+
+    setLocalDeletingId(template.id);
+    void Promise.resolve(onDelete(template))
+      .then((deleted) => {
+        if (!deleted) return;
+        setOrderedTemplates((prev) => prev.filter((item) => item.id !== template.id));
+      })
+      .finally(() => {
+        setLocalDeletingId(null);
+      });
+  };
+
   return (
     <ModalShell
       open={isOpen}
+      onAfterClose={onAfterClose}
       onBackdropClick={onClose}
       overlayClassName="fixed inset-0 z-[60] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
       panelClassName="flex w-full max-w-none max-h-[85dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-w-md sm:rounded-2xl"
@@ -148,7 +176,7 @@ function TemplatePickerModal({
                   if (moved) {
                     const ids = orderedTemplatesRef.current.map((item) => item.id);
                     setSkipClickId(template.id);
-                    onReorder(ids);
+                    persistReorder(ids);
                   }
                   event.preventDefault();
                   event.stopPropagation();
@@ -170,7 +198,7 @@ function TemplatePickerModal({
                       : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
                 }`}
               >
-                {isSavingOrder ? (
+                {savingOrder ? (
                   <span
                     aria-hidden="true"
                     className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-400 border-t-transparent"
@@ -194,15 +222,15 @@ function TemplatePickerModal({
               <button
                 type="button"
                 aria-label="템플릿 삭제"
-                disabled={deletingTemplateId === template.id}
+                disabled={activeDeletingId === template.id}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  onDelete(template);
+                  handleDeleteTemplate(template);
                 }}
                 className="ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {deletingTemplateId === template.id ? (
+                {activeDeletingId === template.id ? (
                   <span
                     aria-hidden="true"
                     className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-400 border-t-transparent"

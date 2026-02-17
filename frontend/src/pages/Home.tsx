@@ -1,12 +1,13 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type Template, type TemplateDraft } from '../services/api';
+import { overlay } from 'overlay-kit';
+import { api, type Template } from '../services/api';
 import { useRecordsController } from '../hooks/useRecordsController';
+import { useTemplate } from '../hooks/useTemplate';
 import { useAuth } from '../contexts/AuthContext';
 import SmartEntry from '../components/SmartEntry';
 import DetailEntry, { type Record } from '../components/DetailEntry';
-import TemplatePickerModal from '../components/TemplatePickerModal';
 import RecordListItem from '../components/RecordListItem';
 import SyncIndicator from '../components/SyncIndicator';
 import SyncQueueModal from '../components/SyncQueueModal';
@@ -36,17 +37,8 @@ function Home() {
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
   const [setupRequired, setSetupRequired] = useState(false);
-  const [showDetailEntry, setShowDetailEntry] = useState(false);
-  const [editRecord, setEditRecord] = useState<Record | null>(null);
-  const [initialTemplate, setInitialTemplate] = useState<Template | null>(null);
-  const [pendingTemplateUseId, setPendingTemplateUseId] = useState<string | null>(null);
-  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
-  const [isTemplateOrderSaving, setIsTemplateOrderSaving] = useState(false);
-  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [quickParsed, setQuickParsed] = useState<ParsedInput | null>(null);
   const [quickEntryResetSignal, setQuickEntryResetSignal] = useState(0);
-  const [showSyncQueueModal, setShowSyncQueueModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshSource, setRefreshSource] = useState<RefreshSource | null>(null);
   const [pullDistance, setPullDistance] = useState(0);
@@ -55,9 +47,6 @@ function Home() {
     return document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
   });
   const scrollAnchorRef = useRef<{ id: string; top: number } | null>(null);
-  const templateReorderDebounceRef = useRef<number | null>(null);
-  const templateReorderAbortRef = useRef<AbortController | null>(null);
-  const latestTemplateOrderRef = useRef<string[]>([]);
   const pullStartYRef = useRef<number | null>(null);
   const isPullingRef = useRef(false);
 
@@ -73,6 +62,7 @@ function Home() {
     isOnline,
     pendingCount,
   } = useRecordsController();
+  const { saveTemplate, pickTemplate, openTemplateSaveModal } = useTemplate();
 
   const findRecordElementById = useCallback((id: string): HTMLElement | null => {
     const elements = document.querySelectorAll<HTMLElement>('[data-record-id]');
@@ -148,19 +138,6 @@ function Home() {
     staleTime: 1 * 60 * 1000, // 1분 캐시
   });
 
-  const {
-    data: templates = [],
-    isPending: templatesPending,
-    error: templatesError,
-  } = useQuery({
-    queryKey: ['templates'],
-    queryFn: async () => {
-      const response = await api.getTemplates();
-      return response.data || [];
-    },
-    staleTime: 1 * 60 * 1000,
-  });
-
   // 레코드를 일자별로 그룹화
   const groupedRecords = useMemo(() => {
     const groups: { [key: string]: (Record & { _isSaving?: boolean })[] } = {};
@@ -232,7 +209,8 @@ function Home() {
 
   // Intersection Observer 설정
   useEffect(() => {
-    if (!observerTarget.current) return;
+    const target = observerTarget.current;
+    if (!target) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -246,12 +224,10 @@ function Home() {
       }
     );
 
-    observer.observe(observerTarget.current);
+    observer.observe(target);
 
     return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current);
-      }
+      observer.unobserve(target);
     };
   }, [hasMore, loadingMore, loadMore, bottomTriggerMargin]);
 
@@ -359,14 +335,10 @@ function Home() {
     }
   }, [pullDistance, handleManualRefresh]);
 
-  const handleEntrySubmit = async (parsed: ParsedInput) => {
+  const handleEntrySubmit = async (parsed: ParsedInput, templateUseId: string | null = null) => {
     // 빠른기록 입력창/파싱 상태 초기화 (상세기록에서 전송한 경우 포함)
     setQuickParsed(null);
     setQuickEntryResetSignal((prev) => prev + 1);
-
-    // 즉시 다이얼로그 닫기
-    setShowDetailEntry(false);
-    setEditRecord(null);
 
     const date = getTodayDate();
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -395,14 +367,12 @@ function Home() {
         historyAfterSnapshot: toSnapshot(optimisticRecord),
       });
 
-      if (pendingTemplateUseId) {
+      if (templateUseId) {
         try {
-          await api.markTemplateUsed(pendingTemplateUseId);
+          await api.markTemplateUsed(templateUseId);
           await queryClient.invalidateQueries({ queryKey: ['templates'] });
         } catch (templateError) {
           console.error('Failed to mark template used:', templateError);
-        } finally {
-          setPendingTemplateUseId(null);
         }
       }
 
@@ -428,9 +398,6 @@ function Home() {
       queryClient.setQueryData(['records'], (old: Record[] = []) => {
         return old.filter(r => r.id !== tempId);
       });
-    } finally {
-      setInitialTemplate(null);
-      setPendingTemplateUseId(null);
     }
   };
 
@@ -439,10 +406,6 @@ function Home() {
     const currentRecords = queryClient.getQueryData(['records']) as (Record & { updated?: string })[] | undefined;
     const targetRecord = currentRecords?.find((record) => record.id === id);
     const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
-
-    // 즉시 다이얼로그 닫기
-    setShowDetailEntry(false);
-    setEditRecord(null);
 
     // 원본 레코드 저장 (롤백용)
     queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean })[] = []) => {
@@ -495,10 +458,6 @@ function Home() {
     const targetRecord = currentRecords?.find((record) => record.id === id);
     const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
 
-    // 즉시 다이얼로그 닫기
-    setShowDetailEntry(false);
-    setEditRecord(null);
-
     // 원본 레코드 저장 (롤백용) + 로딩 상태 표시
     queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
       return old.map(r => r.id === id ? { ...r, _original: { ...r }, _isSaving: true } : r);
@@ -525,116 +484,84 @@ function Home() {
     }
   };
 
+  const openDetailEntry = ({
+    editRecord = null,
+    initialParsed = null,
+    initialTemplate = null,
+    templateUseId = null,
+  }: {
+    editRecord?: Record | null;
+    initialParsed?: ParsedInput | null;
+    initialTemplate?: Template | null;
+    templateUseId?: string | null;
+  } = {}) =>
+    overlay.openAsync<void>(({ isOpen, close, unmount }) => (
+      <DetailEntry
+        isOpen={isOpen}
+        editRecord={editRecord}
+        initialParsed={editRecord ? null : initialParsed}
+        initialTemplate={editRecord ? null : initialTemplate}
+        onClose={() => close(undefined)}
+        onAfterClose={unmount}
+        onSubmit={(parsed) => {
+          close(undefined);
+          void handleEntrySubmit(parsed, templateUseId);
+        }}
+        onUpdate={(id, parsed, date) => {
+          close(undefined);
+          void handleUpdate(id, parsed, date);
+        }}
+        onDelete={(id) => {
+          close(undefined);
+          void handleDelete(id);
+        }}
+        onSaveTemplate={saveTemplate}
+        onOpenTemplateSaveModal={openTemplateSaveModal}
+      />
+    ));
+
   const handleRecordClick = (record: Record) => {
     setQuickParsed(null);
-    setInitialTemplate(null);
-    setPendingTemplateUseId(null);
-    setEditRecord(record);
-    setShowDetailEntry(true);
+    void openDetailEntry({ editRecord: record });
   };
 
-  const handleModalClose = () => {
-    setShowDetailEntry(false);
-    setEditRecord(null);
-    setInitialTemplate(null);
-    setPendingTemplateUseId(null);
-  };
+  const openTemplatePicker = async () => {
+    const selectedTemplate = await pickTemplate();
 
-  const handleTemplateSelect = (template: Template) => {
-    setShowTemplatePicker(false);
+    if (!selectedTemplate) return;
+
     setQuickParsed(null);
-    setEditRecord(null);
-    setInitialTemplate(template);
-    setPendingTemplateUseId(template.id);
-    setShowDetailEntry(true);
-  };
-
-  const handleSaveTemplate = async (draft: TemplateDraft) => {
-    await api.createTemplate(draft);
-    await queryClient.invalidateQueries({ queryKey: ['templates'] });
-    await showAlert('템플릿으로 저장했습니다.');
-  };
-
-  const handleReorderTemplates = (ids: string[]) => {
-    latestTemplateOrderRef.current = ids;
-    setIsTemplateOrderSaving(true);
-
-    queryClient.setQueryData(['templates'], (old: Template[] = []) => {
-      if (!old.length) return old;
-      const byId = new Map(old.map((item) => [item.id, item]));
-      const ordered = ids.map((id, index) => {
-        const found = byId.get(id);
-        if (!found) return null;
-        return { ...found, sortOrder: index + 1 };
-      }).filter(Boolean) as Template[];
-      const remain = old.filter((item) => !ids.includes(item.id));
-      return [...ordered, ...remain];
+    void openDetailEntry({
+      initialTemplate: selectedTemplate,
+      templateUseId: selectedTemplate.id,
     });
-
-    if (templateReorderDebounceRef.current !== null) {
-      window.clearTimeout(templateReorderDebounceRef.current);
-      templateReorderDebounceRef.current = null;
-    }
-
-    if (templateReorderAbortRef.current) {
-      templateReorderAbortRef.current.abort();
-      templateReorderAbortRef.current = null;
-    }
-
-    templateReorderDebounceRef.current = window.setTimeout(() => {
-      const controller = new AbortController();
-      templateReorderAbortRef.current = controller;
-      const payload = [...latestTemplateOrderRef.current];
-
-      void api.reorderTemplates(payload, controller.signal)
-        .catch(async (error: any) => {
-          if (error?.name === 'AbortError') return;
-          await queryClient.invalidateQueries({ queryKey: ['templates'] });
-          await showAlert('템플릿 순서 저장에 실패했습니다: ' + error.message);
-        })
-        .finally(() => {
-          if (templateReorderAbortRef.current === controller) {
-            templateReorderAbortRef.current = null;
-            setIsTemplateOrderSaving(false);
-          }
-        });
-    }, 180);
   };
 
-  const handleDeleteTemplate = async (template: Template) => {
-    if (
-      !(await showConfirm(`"${template.name}" 템플릿을 삭제할까요?`, {
-        primaryLabel: '삭제',
-        secondaryLabel: '취소',
-        tone: 'danger',
-      }))
-    ) {
-      return;
-    }
+  const openSyncQueueModal = useCallback(
+    () =>
+      overlay.openAsync<void>(({ isOpen, close, unmount }) => (
+        <SyncQueueModal
+          isOpen={isOpen}
+          onClose={() => close(undefined)}
+          onAfterClose={unmount}
+          onRecordsUpdated={loadRecords}
+        />
+      )),
+    [loadRecords]
+  );
 
-    setDeletingTemplateId(template.id);
-    try {
-      await api.deleteTemplate(template.id);
-      await queryClient.invalidateQueries({ queryKey: ['templates'] });
-    } catch (error: any) {
-      await showAlert('템플릿 삭제에 실패했습니다: ' + error.message);
-    } finally {
-      setDeletingTemplateId(null);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (templateReorderDebounceRef.current !== null) {
-        window.clearTimeout(templateReorderDebounceRef.current);
-        templateReorderDebounceRef.current = null;
-      }
-      if (templateReorderAbortRef.current) {
-        templateReorderAbortRef.current.abort();
-        templateReorderAbortRef.current = null;
-      }
-    };
-  }, []);
+  const openHistoryModal = useCallback(
+    () =>
+      overlay.openAsync<void>(({ isOpen, close, unmount }) => (
+        <ChangeHistoryModal
+          isOpen={isOpen}
+          onClose={() => close(undefined)}
+          onAfterClose={unmount}
+          onRestore={(entry) => restoreHistory(entry, { onRestored: async () => { await loadRecords(); } })}
+        />
+      )),
+    [loadRecords, restoreHistory]
+  );
 
   if (setupRequired) {
     return (
@@ -713,7 +640,7 @@ function Home() {
                 </svg>
               </button>
               <button
-                onClick={() => setShowHistoryModal(true)}
+                onClick={() => void openHistoryModal()}
                 aria-label="이력"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
@@ -755,7 +682,7 @@ function Home() {
           </div>
         )}
         {pendingCount > 0 && (
-          <SyncIndicator onRecordsUpdated={loadRecords} onQueueOpen={() => setShowSyncQueueModal(true)} />
+          <SyncIndicator onRecordsUpdated={loadRecords} onQueueOpen={() => void openSyncQueueModal()} />
         )}
 
         {/* Quick Entry Section */}
@@ -764,17 +691,14 @@ function Home() {
             <h2 className="text-lg font-semibold text-gray-900">빠른 기록</h2>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowTemplatePicker(true)}
+                onClick={() => void openTemplatePicker()}
                 className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition-all hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
               >
                 템플릿
               </button>
               <button
                 onClick={() => {
-                  setInitialTemplate(null);
-                  setPendingTemplateUseId(null);
-                  setEditRecord(null);
-                  setShowDetailEntry(true);
+                  void openDetailEntry({ initialParsed: quickParsed });
                 }}
                 className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-all hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
@@ -916,45 +840,6 @@ function Home() {
           </svg>
         )}
       </button>
-
-      {/* Detail Entry Modal */}
-      <DetailEntry
-        isOpen={showDetailEntry}
-        editRecord={editRecord}
-        initialParsed={editRecord ? null : quickParsed}
-        initialTemplate={editRecord ? null : initialTemplate}
-        onClose={handleModalClose}
-        onSubmit={handleEntrySubmit}
-        onUpdate={handleUpdate}
-        onDelete={handleDelete}
-        onSaveTemplate={handleSaveTemplate}
-      />
-
-      <TemplatePickerModal
-        isOpen={showTemplatePicker}
-        templates={templates}
-        isLoading={templatesPending}
-        isSavingOrder={isTemplateOrderSaving}
-        deletingTemplateId={deletingTemplateId}
-        errorMessage={templatesError ? (templatesError as Error).message : undefined}
-        onClose={() => setShowTemplatePicker(false)}
-        onSelect={handleTemplateSelect}
-        onReorder={handleReorderTemplates}
-        onDelete={handleDeleteTemplate}
-      />
-
-      {/* Sync Queue Modal */}
-      <SyncQueueModal
-        isOpen={showSyncQueueModal}
-        onClose={() => setShowSyncQueueModal(false)}
-        onRecordsUpdated={loadRecords}
-      />
-
-      <ChangeHistoryModal
-        isOpen={showHistoryModal}
-        onClose={() => setShowHistoryModal(false)}
-        onRestore={(entry) => restoreHistory(entry, { onRestored: async () => { await loadRecords(); } })}
-      />
     </div>
   );
 }

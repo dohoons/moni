@@ -5,10 +5,11 @@ interface TemplateSaveModalProps {
   isOpen: boolean;
   hasAmount: boolean;
   onClose: () => void;
+  onAfterClose?: () => void;
   onSubmit: (payload: { name: string; includeAmount: boolean }) => Promise<void>;
 }
 
-function TemplateSaveModal({ isOpen, hasAmount, onClose, onSubmit }: TemplateSaveModalProps) {
+function TemplateSaveModal({ isOpen, hasAmount, onClose, onAfterClose, onSubmit }: TemplateSaveModalProps) {
   const [name, setName] = useState('');
   const [includeAmount, setIncludeAmount] = useState(hasAmount);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,7 +28,6 @@ function TemplateSaveModal({ isOpen, hasAmount, onClose, onSubmit }: TemplateSav
     setIsSubmitting(true);
     try {
       await onSubmit({ name: name.trim(), includeAmount: hasAmount ? includeAmount : false });
-      onClose();
     } finally {
       setIsSubmitting(false);
     }
@@ -36,6 +36,7 @@ function TemplateSaveModal({ isOpen, hasAmount, onClose, onSubmit }: TemplateSav
   return (
     <ModalShell
       open={isOpen}
+      onAfterClose={onAfterClose}
       onBackdropClick={onClose}
       overlayClassName="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
       panelClassName="w-full max-w-none rounded-t-2xl bg-white shadow-xl sm:max-w-sm sm:rounded-2xl"

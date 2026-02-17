@@ -8,7 +8,6 @@ import { showAlert, showConfirm } from '../services/message-dialog';
 import type { Template, TemplateDraft } from '../services/api';
 import ModalShell from './ModalShell';
 import DialogSelect from './DialogSelect';
-import TemplateSaveModal from './TemplateSaveModal';
 import { getTodayDate } from '../lib/date';
 
 export interface Record {
@@ -27,10 +26,15 @@ interface DetailEntryProps {
   initialParsed?: ParsedInput | null;
   initialTemplate?: Template | null;
   onClose: () => void;
+  onAfterClose?: () => void;
   onSubmit: (parsed: ParsedInput) => void;
   onUpdate: (id: string, parsed: Partial<ParsedInput>, date: string) => void;
   onDelete: (id: string) => void;
   onSaveTemplate: (draft: TemplateDraft) => Promise<void>;
+  onOpenTemplateSaveModal?: (params: {
+    hasAmount: boolean;
+    onSubmit: (payload: { name: string; includeAmount: boolean }) => Promise<void>;
+  }) => Promise<void>;
   showTemplateSaveButton?: boolean;
 }
 
@@ -99,10 +103,12 @@ function DetailEntryInner({
   isOpen,
   editRecord,
   onClose,
+  onAfterClose,
   onSubmit,
   onUpdate,
   onDelete,
   onSaveTemplate,
+  onOpenTemplateSaveModal,
   showTemplateSaveButton = true,
   initialFormState,
 }: DetailEntryInnerProps) {
@@ -112,7 +118,6 @@ function DetailEntryInner({
   const [method, setMethod] = useState<PaymentMethod | ''>(initialFormState.method);
   const [category, setCategory] = useState(initialFormState.category);
   const [date, setDate] = useState(initialFormState.date);
-  const [showTemplateSaveModal, setShowTemplateSaveModal] = useState(false);
   const { isMobile, keyboardInset } = useDialogViewport(isOpen);
   const { panelRef, panelStyle, panelTouch } = usePullDownToClose({ onClose, enabled: isOpen });
 
@@ -128,21 +133,6 @@ function DetailEntryInner({
       setCategory('');
     }
   };
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!isOpen || !isMobile) return;
@@ -263,9 +253,18 @@ function DetailEntryInner({
     });
   };
 
+  const openTemplateSaveModal = async () => {
+    if (!onOpenTemplateSaveModal) return;
+    await onOpenTemplateSaveModal({
+      hasAmount: numAmount > 0,
+      onSubmit: handleTemplateSave,
+    });
+  };
+
   return (
     <ModalShell
       open={isOpen}
+      onAfterClose={onAfterClose}
       onBackdropClick={onClose}
       overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-md sm:rounded-2xl"
@@ -285,7 +284,7 @@ function DetailEntryInner({
             {showTemplateSaveButton && (
               <button
                 type="button"
-                onClick={() => setShowTemplateSaveModal(true)}
+                onClick={() => void openTemplateSaveModal()}
                 className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 템플릿 저장
@@ -441,14 +440,6 @@ function DetailEntryInner({
             </div>
       </div>
         </form>
-      {showTemplateSaveButton && (
-        <TemplateSaveModal
-          isOpen={isOpen && showTemplateSaveModal}
-          hasAmount={numAmount > 0}
-          onClose={() => setShowTemplateSaveModal(false)}
-          onSubmit={handleTemplateSave}
-        />
-      )}
     </ModalShell>
   );
 }
@@ -459,10 +450,12 @@ function DetailEntry({
   initialParsed = null,
   initialTemplate = null,
   onClose,
+  onAfterClose,
   onSubmit,
   onUpdate,
   onDelete,
   onSaveTemplate,
+  onOpenTemplateSaveModal,
   showTemplateSaveButton = true,
 }: DetailEntryProps) {
   const initialFormState = buildInitialFormState({
@@ -486,10 +479,12 @@ function DetailEntry({
       isOpen={isOpen}
       editRecord={editRecord}
       onClose={onClose}
+      onAfterClose={onAfterClose}
       onSubmit={onSubmit}
       onUpdate={onUpdate}
       onDelete={onDelete}
       onSaveTemplate={onSaveTemplate}
+      onOpenTemplateSaveModal={onOpenTemplateSaveModal}
       showTemplateSaveButton={showTemplateSaveButton}
       initialFormState={initialFormState}
     />

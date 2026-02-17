@@ -14,10 +14,11 @@ import ModalShell from './ModalShell';
 interface ChangeHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onAfterClose?: () => void;
   onRestore: (entry: ChangeHistoryEntry) => Promise<void>;
 }
 
-function ChangeHistoryModal({ isOpen, onClose, onRestore }: ChangeHistoryModalProps) {
+function ChangeHistoryModal({ isOpen, onClose, onAfterClose, onRestore }: ChangeHistoryModalProps) {
   const [entries, setEntries] = useState<ChangeHistoryEntry[]>([]);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -29,21 +30,6 @@ function ChangeHistoryModal({ isOpen, onClose, onRestore }: ChangeHistoryModalPr
       setEntries(getChangeHistory());
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
 
   const dialogStyle: CSSProperties = {
     ...panelStyle,
@@ -158,6 +144,7 @@ function ChangeHistoryModal({ isOpen, onClose, onRestore }: ChangeHistoryModalPr
   return (
     <ModalShell
       open={isOpen}
+      onAfterClose={onAfterClose}
       onBackdropClick={onClose}
       overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-lg sm:rounded-2xl"

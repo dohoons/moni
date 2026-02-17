@@ -11,6 +11,7 @@ import ModalShell from './ModalShell';
 interface SyncQueueModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onAfterClose?: () => void;
   onRecordsUpdated?: () => void;
 }
 
@@ -21,7 +22,7 @@ interface SyncQueueModalProps {
  * - 개별 작업 취소
  * - 전체 취소
  */
-function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalProps) {
+function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: SyncQueueModalProps) {
   const [records, setRecords] = useState(getPendingRecords());
   const [syncingIndex, setSyncingIndex] = useState<number | null>(null);
   const { isMobile, keyboardInset } = useDialogViewport(isOpen);
@@ -33,21 +34,6 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
       setRecords(getPendingRecords());
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
 
   const refreshRecords = () => {
     setRecords(getPendingRecords());
@@ -281,6 +267,7 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
   return (
     <ModalShell
       open={isOpen}
+      onAfterClose={onAfterClose}
       onBackdropClick={onClose}
       overlayClassName="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       panelClassName="flex w-full max-w-none max-h-[90dvh] flex-col rounded-t-2xl bg-white shadow-xl sm:max-h-[calc(100vh-2rem)] sm:max-w-md sm:rounded-2xl"

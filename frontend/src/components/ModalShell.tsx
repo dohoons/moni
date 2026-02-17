@@ -1,10 +1,32 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { CSSProperties, HTMLAttributes, ReactNode, Ref } from 'react';
 import { RemoveScroll } from 'react-remove-scroll';
+
+const modalStack: symbol[] = [];
+
+const pushModal = (id: symbol) => {
+  const existingIndex = modalStack.indexOf(id);
+  if (existingIndex >= 0) {
+    modalStack.splice(existingIndex, 1);
+  }
+  modalStack.push(id);
+};
+
+const removeModal = (id: symbol) => {
+  const index = modalStack.indexOf(id);
+  if (index >= 0) {
+    modalStack.splice(index, 1);
+  }
+};
+
+const isTopModal = (id: symbol) => modalStack[modalStack.length - 1] === id;
 
 interface ModalShellProps {
   open: boolean;
   onBackdropClick: () => void;
+  onAfterClose?: () => void;
+  closeOnEsc?: boolean;
+  onEsc?: () => void;
   overlayClassName: string;
   panelClassName: string;
   children: ReactNode;
@@ -18,6 +40,9 @@ interface ModalShellProps {
 function ModalShell({
   open,
   onBackdropClick,
+  onAfterClose,
+  closeOnEsc = true,
+  onEsc,
   overlayClassName,
   panelClassName,
   children,
@@ -30,7 +55,44 @@ function ModalShell({
   const EXIT_DURATION_MS = 150;
   const [isRendered, setIsRendered] = useState(open);
   const closeTimerRef = useRef<number | null>(null);
+  const modalIdRef = useRef(Symbol('modal-shell'));
+  const runAfterClose = useEffectEvent(() => {
+    onAfterClose?.();
+  });
+  const runEscClose = useEffectEvent(() => {
+    (onEsc ?? onBackdropClick)();
+  });
   const { onClick: panelOnClick, className: panelExtraClassName, ...restPanelProps } = panelProps ?? {};
+
+  useEffect(() => {
+    if (!open) return;
+
+    const modalId = modalIdRef.current;
+    pushModal(modalId);
+
+    return () => {
+      removeModal(modalId);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !closeOnEsc) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (event.defaultPrevented) return;
+      if (!isTopModal(modalIdRef.current)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      runEscClose();
+    };
+
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [open, closeOnEsc]);
 
   useEffect(() => {
     if (closeTimerRef.current !== null) {
@@ -45,6 +107,7 @@ function ModalShell({
 
     closeTimerRef.current = window.setTimeout(() => {
       setIsRendered(false);
+      runAfterClose();
       closeTimerRef.current = null;
     }, EXIT_DURATION_MS);
 

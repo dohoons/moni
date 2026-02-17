@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import ModalShell from './ModalShell';
 
 export interface DialogSelectOption<T extends string> {
@@ -31,21 +31,6 @@ function DialogSelect<T extends string>({
     () => options.find((option) => option.value === value)?.label ?? '',
     [options, value],
   );
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen]);
 
   const handleSelect = (nextValue: T | '') => {
     onChange(nextValue);

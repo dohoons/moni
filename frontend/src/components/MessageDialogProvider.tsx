@@ -43,18 +43,12 @@ function MessageDialogOverlay({
     'flex-1 rounded-xl border-2 border-gray-200 px-4 py-3 font-medium text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2';
 
   useEffect(() => {
-    if (isOpen) {
-      const rafId = window.requestAnimationFrame(() => {
-        primaryButtonRef.current?.focus();
-      });
-      return () => {
-        window.cancelAnimationFrame(rafId);
-      };
-    }
-
-    const timerId = window.setTimeout(onAfterClose, 160);
+    if (!isOpen) return;
+    const rafId = window.requestAnimationFrame(() => {
+      primaryButtonRef.current?.focus();
+    });
     return () => {
-      window.clearTimeout(timerId);
+      window.cancelAnimationFrame(rafId);
     };
   }, [isOpen, onAfterClose]);
 
@@ -62,14 +56,6 @@ function MessageDialogOverlay({
     if (!isOpen) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (options?.allowEscClose === false) return;
-        event.preventDefault();
-        event.stopPropagation();
-        onDismiss();
-        return;
-      }
-
       if (event.key !== 'Enter') return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
 
@@ -85,11 +71,13 @@ function MessageDialogOverlay({
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [isOpen, onPrimary, onDismiss, options?.allowEscClose]);
+  }, [isOpen, onPrimary]);
 
   return (
     <ModalShell
       open={isOpen}
+      onAfterClose={onAfterClose}
+      closeOnEsc={options?.allowEscClose !== false}
       onBackdropClick={() => {
         if (options?.allowEscClose === false) return;
         onDismiss();
