@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { ParsedInput } from '../lib/parser';
+import { getTodayDate } from '../lib/date';
 import {
   getPendingRecords,
   addPendingRecord,
@@ -67,7 +68,7 @@ export function useSync(): UseSyncResult {
           } else {
             await api.createRecord({
               amount: record.data.amount ?? 0,
-              date: record.data.date ?? new Date().toISOString().split('T')[0],
+              date: record.data.date ?? getTodayDate(),
               memo: record.data.memo ?? null,
               method: (record.data.method ?? null) as ParsedInput['method'],
               category: record.data.category ?? null,
@@ -93,7 +94,7 @@ export function useSync(): UseSyncResult {
   // createRecord Mutation
   const createRecordMutation = useMutation({
     mutationFn: async (data: ParsedInput & { tempId: string; date?: string }) => {
-      const date = data.date || new Date().toISOString().split('T')[0];
+      const date = data.date || getTodayDate();
 
       if (isOnline()) {
         const response = await api.createRecord({

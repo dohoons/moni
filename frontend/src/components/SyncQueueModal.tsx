@@ -5,6 +5,7 @@ import { getPendingRecords, clearPendingRecords, removePendingRecordByIndex, get
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
 import { useDialogViewport } from '../hooks/useDialogViewport';
 import { showAlert, showConfirm } from '../services/message-dialog';
+import { getTodayDate } from '../lib/date';
 import ModalShell from './ModalShell';
 
 interface SyncQueueModalProps {
@@ -78,7 +79,7 @@ function SyncQueueModal({ isOpen, onClose, onRecordsUpdated }: SyncQueueModalPro
       } else {
         await api.createRecord({
           amount: record.data.amount ?? 0,
-          date: record.data.date ?? new Date().toISOString().split('T')[0],
+          date: record.data.date ?? getTodayDate(),
           memo: record.data.memo ?? null,
           method: (record.data.method ?? null) as any,
           category: record.data.category ?? null,

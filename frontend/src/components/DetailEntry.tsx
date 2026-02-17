@@ -7,6 +7,7 @@ import { useDialogViewport } from '../hooks/useDialogViewport';
 import { showAlert, showConfirm } from '../services/message-dialog';
 import ModalShell from './ModalShell';
 import DialogSelect from './DialogSelect';
+import { getTodayDate } from '../lib/date';
 
 export interface Record {
   id: string;
@@ -63,7 +64,7 @@ function DetailEntry({ isOpen, editRecord, initialParsed = null, onClose, onSubm
       setMemo(initialParsed?.memo || '');
       setMethod((initialParsed?.method as PaymentMethod) || '');
       setCategory(initialParsed?.category || '');
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getTodayDate());
     }
   }, [editRecord, isOpen, initialParsed]);
 

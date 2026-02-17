@@ -1,5 +1,6 @@
 import { forceRefreshAccessToken, getAccessToken } from './google-oauth';
 import type { ParsedInput } from '../lib/parser';
+import { getTodayDate } from '../lib/date';
 
 const GAS_WEB_APP_URL = import.meta.env.VITE_GAS_WEB_APP_URL;
 
@@ -83,7 +84,7 @@ export const api = {
     return request('/api/record', {
       ...data,
       category,
-      date: data.date || new Date().toISOString().split('T')[0],
+      date: data.date || getTodayDate(),
     });
   },
 

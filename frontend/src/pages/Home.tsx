@@ -11,6 +11,7 @@ import SyncIndicator from '../components/SyncIndicator';
 import SyncQueueModal from '../components/SyncQueueModal';
 import ChangeHistoryModal from '../components/ChangeHistoryModal';
 import type { ParsedInput } from '../lib/parser';
+import { getTodayDate } from '../lib/date';
 import { WEEKDAYS } from '../constants';
 import { showAlert, showConfirm } from '../services/message-dialog';
 
@@ -345,7 +346,7 @@ function Home() {
     setShowDetailEntry(false);
     setEditRecord(null);
 
-    const date = new Date().toISOString().split('T')[0];
+    const date = getTodayDate();
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // 낙관적 업데이트: 목록에 즉시 추가

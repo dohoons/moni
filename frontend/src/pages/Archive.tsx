@@ -10,6 +10,7 @@ import { useDialogViewport } from '../hooks/useDialogViewport';
 import { api } from '../services/api';
 import { WEEKDAYS } from '../constants';
 import type { ParsedInput } from '../lib/parser';
+import { getMonthRange } from '../lib/date';
 import { showAlert } from '../services/message-dialog';
 import ModalShell from '../components/ModalShell';
 
@@ -26,15 +27,6 @@ const getCurrentYearMonth = () => {
   return {
     year: now.getFullYear(),
     month: now.getMonth() + 1,
-  };
-};
-
-const getMonthRange = (year: number, month: number) => {
-  const firstDay = new Date(year, month - 1, 1);
-  const lastDay = new Date(year, month, 0);
-  return {
-    startDate: firstDay.toISOString().split('T')[0],
-    endDate: lastDay.toISOString().split('T')[0],
   };
 };
 
