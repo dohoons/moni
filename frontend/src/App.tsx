@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Stats from './pages/Stats';
 import Archive from './pages/Archive';
+import Search from './pages/Search';
 import MessageDialogProvider from './components/MessageDialogProvider';
 
 const queryClient = new QueryClient({
@@ -34,6 +35,7 @@ function AppContent() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/" element={user ? <Home /> : <Navigate to="/login" replace />} />
+      <Route path="/search" element={user ? <Search /> : <Navigate to="/login" replace />} />
       <Route path="/stats" element={user ? <Stats /> : <Navigate to="/login" replace />} />
       <Route path="/archive" element={user ? <Archive /> : <Navigate to="/login" replace />} />
     </Routes>

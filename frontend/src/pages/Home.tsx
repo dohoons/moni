@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect, useEffectEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { overlay } from 'overlay-kit';
@@ -35,7 +35,6 @@ function Home() {
   const queryClient = useQueryClient();
   const { logout } = useAuth();
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
   const [setupRequired, setSetupRequired] = useState(false);
   const [quickParsed, setQuickParsed] = useState<ParsedInput | null>(null);
@@ -126,12 +125,11 @@ function Home() {
     queryFn: async () => {
       const response = await api.getRecords({ limit: PAGE_SIZE });
       if (response.data) {
-        if (response.data.length > 0) {
+        if (response.data.length === PAGE_SIZE) {
           const lastRecord = response.data[response.data.length - 1];
           setCursor(`${lastRecord.date}|${lastRecord.id}`);
-          setHasMore(response.data.length === PAGE_SIZE);
         } else {
-          setHasMore(false);
+          setCursor(null);
         }
         return response.data;
       }
@@ -155,8 +153,8 @@ function Home() {
   }, [records]);
 
   // 추가 로드
-  const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore || !cursor) return;
+  const loadMore = useEffectEvent(async () => {
+    if (loadingMore || !cursor) return;
 
     setLoadingMore(true);
     try {
@@ -164,24 +162,23 @@ function Home() {
       if (response.data) {
         if (response.data.length > 0) {
           const lastRecord = response.data[response.data.length - 1];
-          setCursor(`${lastRecord.date}|${lastRecord.id}`);
-          setHasMore(response.data.length === PAGE_SIZE);
+          setCursor(response.data.length === PAGE_SIZE ? `${lastRecord.date}|${lastRecord.id}` : null);
           // 기존 데이터에 추가
           queryClient.setQueryData(['records'], (old: Record[] = []) => [...old, ...response.data]);
         } else {
-          setHasMore(false);
+          setCursor(null);
         }
       }
     } catch (error) {
       console.error('Failed to load more records:', error);
-      setHasMore(false);
+      setCursor(null);
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, cursor, queryClient]);
+  });
 
-  const tryLoadMoreIfNeeded = useCallback(() => {
-    if (!observerTarget.current || loadingMore || !hasMore || !cursor) return;
+  const tryLoadMoreIfNeeded = useEffectEvent(() => {
+    if (!observerTarget.current || loadingMore || !cursor) return;
 
     const rect = observerTarget.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
@@ -190,7 +187,7 @@ function Home() {
     if (rect.top <= viewportHeight + bottomTriggerMargin) {
       void loadMore();
     }
-  }, [loadingMore, hasMore, cursor, loadMore, bottomTriggerMargin]);
+  });
 
   useEffect(() => {
     // env(safe-area-inset-bottom)을 실제 px 값으로 측정
@@ -212,11 +209,11 @@ function Home() {
   // Intersection Observer 설정
   useEffect(() => {
     const target = observerTarget.current;
-    if (!target) return;
+    if (!target || !cursor) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+        if (entries[0].isIntersecting && !loadingMore) {
           void loadMore();
         }
       },
@@ -231,7 +228,7 @@ function Home() {
     return () => {
       observer.unobserve(target);
     };
-  }, [hasMore, loadingMore, loadMore, bottomTriggerMargin]);
+  }, [cursor, loadingMore, bottomTriggerMargin]);
 
   useEffect(() => {
     const onScrollOrResize = () => {
@@ -249,7 +246,7 @@ function Home() {
       window.removeEventListener('resize', onScrollOrResize);
       window.removeEventListener('orientationchange', onScrollOrResize);
     };
-  }, [tryLoadMoreIfNeeded]);
+  }, []);
 
   useEffect(() => {
     const updateTitleBarBottom = () => {
@@ -623,6 +620,15 @@ function Home() {
             </div>
             <div className="flex gap-2">
               <button
+                onClick={() => navigate('/search')}
+                aria-label="검색"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-4.65a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
+              <button
                 onClick={() => navigate('/archive')}
                 aria-label="월별 보기"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -638,15 +644,6 @@ function Home() {
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => void openHistoryModal()}
-                aria-label="이력"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l2.5 2.5m6.5-2.5a9 9 0 11-3.2-6.9" />
                 </svg>
               </button>
               <button
@@ -716,7 +713,20 @@ function Home() {
 
         {/* Recent Records Section */}
         <section>
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">최근 기록</h3>
+          <div className="mb-4 flex items-center">
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-lg font-semibold text-gray-900">최근 기록</h3>
+            <button
+              onClick={() => void openHistoryModal()}
+              aria-label="이력"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l2.5 2.5m6.5-2.5a9 9 0 11-3.2-6.9" />
+              </svg>
+            </button>
+            </div>
+          </div>
           {isPending && !records.length ? (
             <div className="space-y-6">
               {/* 스켈레톤: 3개 날짜 그룹 */}
@@ -815,7 +825,7 @@ function Home() {
                     ))}
                   </>
                 )}
-                {!hasMore && records.length > 0 && !loadingMore && (
+                {!cursor && records.length > 0 && !loadingMore && (
                   <p className="text-center text-xs text-gray-400">모든 기록을 불러왔습니다</p>
                 )}
               </div>

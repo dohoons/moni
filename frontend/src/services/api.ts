@@ -130,6 +130,15 @@ export const api = {
     return request('/api/records', params || {});
   },
 
+  searchRecords: async (params: { q: string; fields?: string[]; limit?: number; cursor?: string }) => {
+    return request('/api/records/search', {
+      q: params.q,
+      fields: params.fields || ['memo'],
+      limit: params.limit,
+      cursor: params.cursor,
+    });
+  },
+
   getTemplates: async () => {
     return request<Template[]>('/api/templates');
   },

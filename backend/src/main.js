@@ -69,6 +69,10 @@ function handleRequest(e) {
         result = handleListRecordsWithBody(bodyData, accessToken);
         break;
 
+      case '/api/records/search':
+        result = handleSearchRecordsWithBody(bodyData, accessToken);
+        break;
+
       case '/api/templates':
         result = handleListTemplatesWithBody(bodyData, accessToken);
         break;
@@ -135,6 +139,19 @@ function handleListRecordsWithBody(bodyData, accessToken) {
   };
 
   return handleListRecords(mockEvent, accessToken);
+}
+
+/**
+ * 본문 데이터로 검색 조회
+ */
+function handleSearchRecordsWithBody(bodyData, accessToken) {
+  const params = bodyData || {};
+
+  const mockEvent = {
+    parameter: params
+  };
+
+  return handleSearchRecords(mockEvent, accessToken);
 }
 
 /**

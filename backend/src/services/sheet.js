@@ -143,6 +143,106 @@ function getRecords(params) {
 }
 
 /**
+ * 검색 필드 정규화
+ */
+function normalizeSearchFields(fields) {
+  if (!fields) return ['memo'];
+
+  const source = Array.isArray(fields) ? fields : [fields];
+  const allowed = { memo: true };
+  const normalized = source
+    .map(field => String(field || '').trim())
+    .filter(field => allowed[field]);
+
+  if (normalized.length === 0) {
+    return ['memo'];
+  }
+
+  const unique = [];
+  const seen = {};
+  normalized.forEach(field => {
+    if (seen[field]) return;
+    seen[field] = true;
+    unique.push(field);
+  });
+
+  return unique;
+}
+
+/**
+ * TextFinder 기반 부분일치 검색
+ */
+function searchRecords(params) {
+  const query = String(params.q || '').trim();
+  if (!query) {
+    throw new Error('Missing required field: q');
+  }
+
+  const sheet = getDataSheet();
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow <= 1) {
+    return [];
+  }
+
+  const fields = normalizeSearchFields(params.fields);
+  const matchedRowSet = {};
+
+  fields.forEach(field => {
+    const col = COLUMN_MAP[field];
+    if (!col) return;
+
+    const finder = sheet
+      .getRange(2, col, lastRow - 1, 1)
+      .createTextFinder(query)
+      .matchCase(false)
+      .matchEntireCell(false);
+
+    const matches = finder.findAll();
+    matches.forEach(range => {
+      matchedRowSet[range.getRow()] = true;
+    });
+  });
+
+  const rowNumbers = Object.keys(matchedRowSet).map(Number);
+  if (rowNumbers.length === 0) {
+    return [];
+  }
+
+  let records = rowNumbers.map(rowNum => {
+    const row = sheet.getRange(rowNum, 1, 1, 8).getValues()[0];
+    return {
+      id: row[0],
+      date: parseDate(row[1]),
+      amount: row[2],
+      memo: row[3],
+      method: row[4],
+      category: row[5],
+      created: row[6],
+      updated: row[7] || row[6]
+    };
+  });
+
+  records.sort((a, b) => {
+    const dateCompare = b.date.localeCompare(a.date);
+    if (dateCompare !== 0) return dateCompare;
+    return b.created.localeCompare(a.created);
+  });
+
+  let startIndex = 0;
+  if (params.cursor) {
+    const [cursorDate, cursorId] = String(params.cursor).split('|');
+    const cursorIndex = records.findIndex(r => r.date === cursorDate && r.id === cursorId);
+    if (cursorIndex !== -1) {
+      startIndex = cursorIndex + 1;
+    }
+  }
+
+  const limit = params.limit || 40;
+  return records.slice(startIndex, startIndex + limit);
+}
+
+/**
  * 기록 수정
  */
 function updateRecord(id, updates) {
