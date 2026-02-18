@@ -6,6 +6,10 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -14,6 +18,15 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+}
+
+/* Prevent iOS Safari auto-zoom when focusing small text inputs */
+@supports (-webkit-touch-callout: none) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 /* iOS Safe Area 처리 */
