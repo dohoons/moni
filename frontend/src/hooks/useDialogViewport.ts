@@ -24,10 +24,7 @@ export function useDialogViewport(enabled: boolean) {
   }, []);
 
   useEffect(() => {
-    if (!enabled || !isMobile) {
-      setKeyboardInset(0);
-      return;
-    }
+    if (!enabled || !isMobile) return;
 
     const viewport = window.visualViewport;
     if (!viewport) return;
@@ -47,5 +44,8 @@ export function useDialogViewport(enabled: boolean) {
     };
   }, [enabled, isMobile]);
 
-  return { isMobile, keyboardInset };
+  return {
+    isMobile,
+    keyboardInset: enabled && isMobile ? keyboardInset : 0,
+  };
 }

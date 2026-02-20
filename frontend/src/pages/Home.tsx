@@ -712,9 +712,9 @@ function Home() {
             </div>
           </div>
           <SmartEntry
+            key={quickEntryResetSignal}
             onSubmit={handleEntrySubmit}
             onParsedChange={setQuickParsed}
-            resetSignal={quickEntryResetSignal}
           />
         </section>
 
