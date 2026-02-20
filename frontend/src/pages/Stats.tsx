@@ -724,7 +724,7 @@ function Stats() {
                                 x={referencePointProgress}
                                 y={referencePointAmount}
                                 r={0}
-                                shape={(props: any) => {
+                                shape={(props) => {
                                   const cx = props?.cx ?? 0;
                                   const cy = props?.cy ?? 0;
                                   return (

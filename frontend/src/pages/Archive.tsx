@@ -96,10 +96,10 @@ function Archive() {
           limit: MONTH_FETCH_LIMIT,
         });
 
-        setRecords((response.data || []) as ArchiveRecord[]);
-      } catch (error: any) {
+        setRecords(response.data || []);
+      } catch (error) {
         console.error('Failed to load records:', error);
-        setError(error.message || '기록을 불러오는데 실패했습니다.');
+        setError(error instanceof Error ? error.message : '기록을 불러오는데 실패했습니다.');
         setRecords([]);
       } finally {
         if (isRefresh) {
@@ -277,9 +277,9 @@ function Archive() {
       setRecords((old) =>
         old.map((record) => (record.id === id ? { ...record, _isSaving: false, _original: undefined } : record))
       );
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to update record:', error);
-      await showAlert('기록 수정에 실패했습니다: ' + error.message);
+      await showAlert('기록 수정에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
       setRecords((old) =>
         old.map((record) =>
           record.id === id && record._original
@@ -305,9 +305,9 @@ function Archive() {
       }
 
       setRecords((old) => old.filter((record) => record.id !== id));
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to delete record:', error);
-      await showAlert('기록 삭제에 실패했습니다: ' + error.message);
+      await showAlert('기록 삭제에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
       setRecords((old) =>
         old.map((record) =>
           record.id === id && record._original

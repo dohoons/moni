@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { getPendingRecords, clearPendingRecords, removePendingRecordByIndex, getPendingRecordByIndex, removePendingRecord, updateLastSyncTime, isOnline } from '../services/sync';
+import type { PendingRecord } from '../services/sync';
 import { showAlert, showConfirm } from '../services/message-dialog';
 import { getTodayDate } from '../lib/date';
 import ModalShell from './ModalShell';
@@ -54,7 +55,7 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
           amount: record.data.amount,
           date: record.data.date,
           memo: record.data.memo ?? null,
-          method: (record.data.method ?? null) as any,
+          method: record.data.method ?? null,
           category: record.data.category ?? null,
         });
       } else {
@@ -62,7 +63,7 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
           amount: record.data.amount ?? 0,
           date: record.data.date ?? getTodayDate(),
           memo: record.data.memo ?? null,
-          method: (record.data.method ?? null) as any,
+          method: record.data.method ?? null,
           category: record.data.category ?? null,
         });
       }
@@ -72,9 +73,9 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
       updateLastSyncTime();
       refreshRecords();
       onRecordsUpdated?.();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to sync record:', error);
-      await showAlert(`동기화 실패: ${error.message || '알 수 없는 오류'}`);
+      await showAlert(`동기화 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setSyncingIndex(null);
     }
@@ -132,7 +133,7 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
 
-  const renderRecordDetails = (record: { id: string; action?: string; data: any }) => {
+  const renderRecordDetails = (record: PendingRecord) => {
     const { action, data } = record;
 
     if (action === 'delete') {
@@ -196,7 +197,7 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
             </div>
           )}
           <div className="text-xs text-gray-600">
-            💰 {data.amount > 0 ? '+' : ''}{data.amount?.toLocaleString()}원
+            💰 {data.amount && data.amount > 0 ? '+' : ''}{data.amount?.toLocaleString() ?? 0}원
           </div>
           {data.memo && (
             <div className="text-xs text-gray-600">
@@ -216,7 +217,7 @@ function SyncQueueModal({ isOpen, onClose, onAfterClose, onRecordsUpdated }: Syn
           </div>
         )}
         <div className="text-xs text-gray-600">
-          💰 {data.amount > 0 ? '+' : ''}{data.amount?.toLocaleString()}원
+          💰 {data.amount && data.amount > 0 ? '+' : ''}{data.amount?.toLocaleString() ?? 0}원
         </div>
         {data.memo && (
           <div className="text-xs text-gray-600">

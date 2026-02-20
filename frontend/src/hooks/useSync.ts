@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { ParsedInput } from '../lib/parser';
+import type { Record as TransactionRecord } from '../components/DetailEntry';
 import { getTodayDate } from '../lib/date';
 import {
   getPendingRecords,
@@ -22,6 +23,8 @@ interface UseSyncResult {
   updateRecord: (id: string, data: Partial<ParsedInput> & { date?: string }) => Promise<{ queued?: boolean }>;
   deleteRecord: (id: string) => Promise<{ queued?: boolean }>;
 }
+
+type CachedRecord = Pick<TransactionRecord, 'id' | 'amount' | 'date' | 'memo' | 'method' | 'category'>;
 
 /**
  * 오프라인 동기화 Hook (React Query)
@@ -62,7 +65,7 @@ export function useSync(): UseSyncResult {
               amount: record.data.amount,
               date: record.data.date,
               memo: record.data.memo ?? null,
-              method: (record.data.method ?? null) as ParsedInput['method'],
+              method: record.data.method ?? null,
               category: record.data.category ?? null,
             });
           } else {
@@ -70,7 +73,7 @@ export function useSync(): UseSyncResult {
               amount: record.data.amount ?? 0,
               date: record.data.date ?? getTodayDate(),
               memo: record.data.memo ?? null,
-              method: (record.data.method ?? null) as ParsedInput['method'],
+              method: record.data.method ?? null,
               category: record.data.category ?? null,
             });
           }
@@ -154,8 +157,8 @@ export function useSync(): UseSyncResult {
         return { queued: false };
       } else {
         // 캐시에서 레코드 정보 가져와서 함께 저장 (삭제 대상 확인용)
-        const records = queryClient.getQueryData(['records']) as any[];
-        const record = records?.find((r: any) => r.id === id);
+        const records = queryClient.getQueryData<CachedRecord[]>(['records']);
+        const record = records?.find((r) => r.id === id);
         if (record) {
           addPendingRecord({
             id,

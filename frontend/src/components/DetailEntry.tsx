@@ -14,7 +14,7 @@ export interface Record {
   date: string;
   amount: number;
   memo: string;
-  method: string | null;
+  method: PaymentMethod | null;
   category: string | null;
   created: string;
 }
@@ -73,7 +73,7 @@ function buildInitialFormState({
       isIncome: editRecord.amount > 0,
       amount: Math.abs(editRecord.amount).toString(),
       memo: editRecord.memo || '',
-      method: (editRecord.method as PaymentMethod) || '',
+      method: editRecord.method || '',
       category: editRecord.category || '',
       date: editRecord.date,
     };
@@ -84,7 +84,7 @@ function buildInitialFormState({
       isIncome: initialTemplate.type === 'income',
       amount: initialTemplate.amount !== null ? Math.abs(initialTemplate.amount).toString() : '',
       memo: initialTemplate.memo || '',
-      method: (initialTemplate.method as PaymentMethod) || '',
+      method: initialTemplate.method || '',
       category: initialTemplate.category || '',
       date: getTodayDate(),
     };
@@ -94,7 +94,7 @@ function buildInitialFormState({
     isIncome: (initialParsed?.amount ?? -1) > 0,
     amount: initialParsed?.amount ? Math.abs(initialParsed.amount).toString() : '',
     memo: initialParsed?.memo || '',
-    method: (initialParsed?.method as PaymentMethod) || '',
+    method: initialParsed?.method || '',
     category: initialParsed?.category || '',
     date: getTodayDate(),
   };

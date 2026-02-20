@@ -1,30 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../services/api';
+import type { StatsData } from '../services/api';
 
-interface CategoryStats {
-  [category: string]: number;
-}
-
-interface MonthStats {
-  expenseTotal: number;
-  total: number;
-  byCategory: CategoryStats;
-}
-
-interface DailyData {
-  day: number;
-  amount: number;
-}
-
-interface StatsData {
-  currentMonth: MonthStats;
-  previousMonth: MonthStats;
-  currentMonthDaily: DailyData[];
-  previousMonthDaily: DailyData[];
-  yearSavings: number;
-  yearExpense: number;
-  lastYearSavings: number;
-}
+type CategoryStats = Record<string, number>;
+type MonthStats = StatsData['currentMonth'];
 
 /**
  * 통계 Hook (React Query)
@@ -38,7 +17,10 @@ export function useStats(year?: number, month?: number) {
     queryKey: ['stats', year, month],
     queryFn: async () => {
       const response = await api.getStats({ year, month });
-      return response.data as StatsData;
+      if (!response.data) {
+        throw new Error('통계 데이터가 비어 있습니다.');
+      }
+      return response.data;
     },
   });
 }

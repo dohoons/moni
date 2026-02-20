@@ -29,6 +29,7 @@ const formatDate = (dateString: string) => {
 
 const PAGE_SIZE = 40;
 type RefreshSource = 'pull' | 'manual';
+type RecordWithMeta = Record & { _isSaving?: boolean; _original?: Record };
 
 function Home() {
   const navigate = useNavigate();
@@ -120,20 +121,18 @@ function Home() {
     isPending,
     error,
     refetch: loadRecords,
-  } = useQuery({
+  } = useQuery<RecordWithMeta[]>({
     queryKey: ['records'],
     queryFn: async () => {
       const response = await api.getRecords({ limit: PAGE_SIZE });
-      if (response.data) {
-        if (response.data.length === PAGE_SIZE) {
-          const lastRecord = response.data[response.data.length - 1];
-          setCursor(`${lastRecord.date}|${lastRecord.id}`);
-        } else {
-          setCursor(null);
-        }
-        return response.data;
+      const records = response.data || [];
+      if (records.length === PAGE_SIZE) {
+        const lastRecord = records[records.length - 1];
+        setCursor(`${lastRecord.date}|${lastRecord.id}`);
+      } else {
+        setCursor(null);
       }
-      return [];
+      return records;
     },
     staleTime: 1 * 60 * 1000, // 1분 캐시
   });
@@ -150,16 +149,15 @@ function Home() {
 
   // 레코드를 일자별로 그룹화
   const groupedRecords = useMemo(() => {
-    const groups: { [key: string]: (Record & { _isSaving?: boolean })[] } = {};
-    records.forEach((record: any) => {
-      const r = record as Record & { _isSaving?: boolean };
-      if (!groups[r.date]) {
-        groups[r.date] = [];
+    const groups: { [key: string]: RecordWithMeta[] } = {};
+    records.forEach((record) => {
+      if (!groups[record.date]) {
+        groups[record.date] = [];
       }
-      groups[r.date].push(r);
+      groups[record.date].push(record);
     });
     // 날짜 내림차순 정렬 (최신 날짜 먼저)
-    return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a)) as [string, (Record & { _isSaving?: boolean })[]][];
+    return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a)) as [string, RecordWithMeta[]][];
   }, [records]);
 
   // 추가 로드
@@ -169,15 +167,14 @@ function Home() {
     setLoadingMore(true);
     try {
       const response = await api.getRecords({ limit: PAGE_SIZE, cursor });
-      if (response.data) {
-        if (response.data.length > 0) {
-          const lastRecord = response.data[response.data.length - 1];
-          setCursor(response.data.length === PAGE_SIZE ? `${lastRecord.date}|${lastRecord.id}` : null);
-          // 기존 데이터에 추가
-          queryClient.setQueryData(['records'], (old: Record[] = []) => [...old, ...response.data]);
-        } else {
-          setCursor(null);
-        }
+      const nextRecords = response.data || [];
+      if (nextRecords.length > 0) {
+        const lastRecord = nextRecords[nextRecords.length - 1];
+        setCursor(nextRecords.length === PAGE_SIZE ? `${lastRecord.date}|${lastRecord.id}` : null);
+        // 기존 데이터에 추가
+        queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => [...old, ...nextRecords]);
+      } else {
+        setCursor(null);
       }
     } catch (error) {
       console.error('Failed to load more records:', error);
@@ -281,9 +278,9 @@ function Home() {
         setSetupRequired(false);
         await loadRecords();
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Setup failed:', error);
-      await showAlert('설정에 실패했습니다: ' + error.message);
+      await showAlert('설정에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
     }
   };
 
@@ -390,7 +387,7 @@ function Home() {
       }
 
       // 온라인 저장 시 임시 ID를 실제 ID로 즉시 교체 (수정 시 Record not found 방지)
-      queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean })[] = []) => {
+      queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
         return old.map(r => {
           if (r.id !== tempId) return r;
           return {
@@ -400,9 +397,9 @@ function Home() {
           };
         });
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to create record:', error);
-      await showAlert('기록 저장에 실패했습니다: ' + error.message);
+      await showAlert('기록 저장에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
       // 실패 시 목록에서 제거
       queryClient.setQueryData(['records'], (old: Record[] = []) => {
         return old.filter(r => r.id !== tempId);
@@ -412,17 +409,17 @@ function Home() {
 
   const handleUpdate = async (id: string, parsed: Partial<ParsedInput>, date: string) => {
     captureScrollAnchor();
-    const currentRecords = queryClient.getQueryData(['records']) as (Record & { updated?: string })[] | undefined;
+    const currentRecords = queryClient.getQueryData<RecordWithMeta[]>(['records']);
     const targetRecord = currentRecords?.find((record) => record.id === id);
     const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
 
     // 원본 레코드 저장 (롤백용)
-    queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean })[] = []) => {
+    queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
       return old.map(r => r.id === id ? { ...r, _original: { ...r }, _isSaving: true } : r);
     });
 
     // 낙관적 업데이트: 즉시 반영
-    queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
+    queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
       return old.map(r => {
         if (r.id === id) {
           return {
@@ -447,15 +444,15 @@ function Home() {
       }
 
       // 저장 완료 후 로딩 상태 제거
-      queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
+      queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
         return old.map(r => r.id === id ? { ...r, _isSaving: false, _original: undefined } : r);
       });
       restoreScrollAnchor();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to update record:', error);
-      await showAlert('기록 수정에 실패했습니다: ' + error.message);
+      await showAlert('기록 수정에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
       // 실패 시 롤백
-      queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
+      queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
         return old.map(r => r._original && r.id === id ? r._original : r);
       });
       restoreScrollAnchor();
@@ -463,12 +460,12 @@ function Home() {
   };
 
   const handleDelete = async (id: string) => {
-    const currentRecords = queryClient.getQueryData(['records']) as (Record & { updated?: string })[] | undefined;
+    const currentRecords = queryClient.getQueryData<RecordWithMeta[]>(['records']);
     const targetRecord = currentRecords?.find((record) => record.id === id);
     const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
 
     // 원본 레코드 저장 (롤백용) + 로딩 상태 표시
-    queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
+    queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
       return old.map(r => r.id === id ? { ...r, _original: { ...r }, _isSaving: true } : r);
     });
 
@@ -483,11 +480,11 @@ function Home() {
       queryClient.setQueryData(['records'], (old: Record[] = []) => {
         return old.filter(r => r.id !== id);
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to delete record:', error);
-      await showAlert('기록 삭제에 실패했습니다: ' + error.message);
+      await showAlert('기록 삭제에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
       // 실패 시 롤백
-      queryClient.setQueryData(['records'], (old: (Record & { _isSaving?: boolean; _original?: any })[] = []) => {
+      queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
         return old.map(r => r._original && r.id === id ? { ...r._original, _isSaving: false } : r);
       });
     }

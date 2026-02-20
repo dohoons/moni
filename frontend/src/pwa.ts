@@ -11,7 +11,7 @@ const updateSW = registerSW({
     // 앱 시작 시점에만 1회 업데이트 확인
     void registration?.update()
   },
-  onRegisterError(error: any) {
+  onRegisterError(error: unknown) {
     console.error('Service Worker 등록 실패:', error)
   }
 })

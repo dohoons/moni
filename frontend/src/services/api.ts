@@ -5,10 +5,37 @@ import { getTodayDate } from '../lib/date';
 
 const GAS_WEB_APP_URL = import.meta.env.VITE_GAS_WEB_APP_URL;
 
-interface ApiResponse<T = any> {
+interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+export interface ApiRecord {
+  id: string;
+  date: string;
+  amount: number;
+  memo: string;
+  method: PaymentMethod | null;
+  category: string | null;
+  created: string;
+  updated?: string;
+}
+
+interface StatsMonth {
+  expenseTotal: number;
+  total: number;
+  byCategory: Record<string, number>;
+}
+
+export interface StatsData {
+  currentMonth: StatsMonth;
+  previousMonth: StatsMonth;
+  currentMonthDaily: Array<{ day: number; amount: number }>;
+  previousMonthDaily: Array<{ day: number; amount: number }>;
+  yearSavings: number;
+  yearExpense: number;
+  lastYearSavings: number;
 }
 
 export interface Template {
@@ -41,9 +68,9 @@ export interface TemplateDraft {
  *
  * Google OAuth Access Token을 포함하여 요청 전송
  */
-async function request<T = any>(
+async function request<T = unknown>(
   path: string,
-  data?: any,
+  data?: unknown,
   allowAuthRetry = true,
   signal?: AbortSignal
 ): Promise<ApiResponse<T>> {
@@ -51,11 +78,17 @@ async function request<T = any>(
   const accessToken = await getAccessToken();
 
   // payload에 path, access_token, body 포함
-  const payload = {
+  const payload: {
+    path: string;
+    access_token: string;
+    body?: unknown;
+  } = {
     path,
     access_token: accessToken,
-    ...(data && { body: data })
   };
+  if (data !== undefined) {
+    payload.body = data;
+  }
 
   const response = await fetch(GAS_WEB_APP_URL, {
     method: 'POST',
@@ -108,7 +141,7 @@ export const api = {
     // 지출이고 카테고리가 없으면 기본값 "식비" 설정
     const category = data.category || (data.amount < 0 ? '식비' : '');
 
-    return request('/api/record', {
+    return request<{ id: string }>('/api/record', {
       ...data,
       category,
       date: data.date || getTodayDate(),
@@ -127,11 +160,11 @@ export const api = {
   },
 
   getRecords: async (params?: { startDate?: string; endDate?: string; limit?: number; cursor?: string }) => {
-    return request('/api/records', params || {});
+    return request<ApiRecord[]>('/api/records', params || {});
   },
 
   searchRecords: async (params: { q: string; fields?: string[]; limit?: number; cursor?: string }) => {
-    return request('/api/records/search', {
+    return request<ApiRecord[]>('/api/records/search', {
       q: params.q,
       fields: params.fields || ['memo'],
       limit: params.limit,
@@ -164,7 +197,7 @@ export const api = {
   },
 
   getStats: async (params?: { year?: number; month?: number }) => {
-    return request('/api/stats', params || {});
+    return request<StatsData>('/api/stats', params || {});
   },
 
   setup: async () => {

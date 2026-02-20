@@ -32,8 +32,8 @@ function ChangeHistoryModal({ isOpen, onClose, onAfterClose, onRestore }: Change
       await onRestore(entry);
       setEntries(getChangeHistory());
       onClose();
-    } catch (error: any) {
-      await showAlert(error?.message || '복원에 실패했습니다.');
+    } catch (error) {
+      await showAlert(error instanceof Error ? error.message : '복원에 실패했습니다.');
     } finally {
       setRestoringId(null);
     }

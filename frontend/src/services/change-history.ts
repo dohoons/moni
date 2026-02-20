@@ -11,7 +11,7 @@ export interface HistoryRecordSnapshot {
   date: string;
   amount: number;
   memo: string;
-  method: string | null;
+  method: ParsedInput['method'];
   category: string | null;
   created?: string;
   updated?: string;
@@ -48,7 +48,7 @@ export function toParsedInput(snapshot: HistoryRecordSnapshot): ParsedInput {
   return {
     amount: snapshot.amount,
     memo: snapshot.memo || null,
-    method: snapshot.method as ParsedInput['method'],
+    method: snapshot.method,
     category: snapshot.category || null,
   };
 }

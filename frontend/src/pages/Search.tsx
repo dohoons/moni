@@ -56,8 +56,8 @@ function Search() {
         fields: ['memo'],
         limit: PAGE_SIZE,
       });
+      const nextRecords = response.data || [];
 
-      const nextRecords = (response.data || []) as SearchRecord[];
       setRecords(nextRecords);
 
       if (nextRecords.length === PAGE_SIZE) {
@@ -66,7 +66,7 @@ function Search() {
       } else {
         setCursor(null);
       }
-    } catch (err: unknown) {
+    } catch (err) {
       console.error('Failed to search records:', err);
       setError(getErrorMessage(err, '검색 중 오류가 발생했습니다.'));
       setRecords([]);
@@ -89,8 +89,8 @@ function Search() {
         limit: PAGE_SIZE,
         cursor,
       });
+      const nextRecords = response.data || [];
 
-      const nextRecords = (response.data || []) as SearchRecord[];
       if (nextRecords.length === 0) {
         setCursor(null);
         return;
@@ -103,7 +103,7 @@ function Search() {
         setCursor(null);
       }
       setRecords((prev) => [...prev, ...nextRecords]);
-    } catch (err: unknown) {
+    } catch (err) {
       console.error('Failed to load more search results:', err);
       setError(getErrorMessage(err, '검색 결과를 더 불러오지 못했습니다.'));
       setCursor(null);
@@ -189,7 +189,7 @@ function Search() {
           )
           .filter((record) => record.memo.toLowerCase().includes(loweredQuery));
       });
-    } catch (err: unknown) {
+    } catch (err) {
       console.error('Failed to update record:', err);
       await showAlert('기록 수정에 실패했습니다: ' + getErrorMessage(err, '알 수 없는 오류'));
 
@@ -218,7 +218,7 @@ function Search() {
       }
 
       setRecords((old) => old.filter((record) => record.id !== id));
-    } catch (err: unknown) {
+    } catch (err) {
       console.error('Failed to delete record:', err);
       await showAlert('기록 삭제에 실패했습니다: ' + getErrorMessage(err, '알 수 없는 오류'));
 

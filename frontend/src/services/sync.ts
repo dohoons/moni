@@ -4,6 +4,7 @@
  * 오프라인 상태에서 기록을 대기열에 저장하고,
  * 온라인 시 자동으로 동기화
  */
+import type { PaymentMethod } from '../constants';
 
 interface PendingRecord {
   id: string;
@@ -12,7 +13,7 @@ interface PendingRecord {
     amount?: number;
     date?: string;
     memo: string | null;
-    method: string | null;
+    method: PaymentMethod | null;
     category: string | null;
   };
   timestamp: number;
@@ -49,7 +50,7 @@ export function addPendingRecord(record: {
   amount?: number;
   date?: string;
   memo?: string | null;
-  method?: string | null;
+  method?: PaymentMethod | null;
   category?: string | null;
 }): string {
   const records = getPendingRecords();

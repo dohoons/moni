@@ -25,13 +25,51 @@ interface GoogleUser {
   picture: string;
 }
 
+type TokenClientRequestConfig = {
+  prompt?: '' | 'consent';
+};
+
+type TokenCallbackResponse = Partial<TokenResponse> & {
+  error?: string;
+};
+
+type GoogleOAuthError = {
+  type?: string;
+  message?: string;
+};
+
+type TokenClient = {
+  requestAccessToken: (config?: TokenClientRequestConfig) => void;
+};
+
+type TokenClientConfig = {
+  client_id: string;
+  scope: string;
+  callback: (response: TokenCallbackResponse) => void | Promise<void>;
+  error_callback?: (error: GoogleOAuthError) => void;
+};
+
+type GoogleIdInitializeConfig = {
+  client_id: string;
+  callback?: () => void;
+};
+
+function isTokenResponse(response: TokenCallbackResponse): response is TokenResponse {
+  return (
+    typeof response.access_token === 'string'
+    && typeof response.expires_in === 'number'
+    && typeof response.scope === 'string'
+    && typeof response.token_type === 'string'
+  );
+}
+
 let accessToken: string | null = localStorage.getItem(TOKEN_STORAGE_KEY);
 let tokenExpiry: number | null = TOKEN_EXPIRY_KEY in localStorage
   ? parseInt(localStorage.getItem(TOKEN_EXPIRY_KEY) || '0', 10)
   : null;
 
 // Token Client 전역 변수 (자동 갱신용)
-let tokenClient: any = null;
+let tokenClient: TokenClient | null = null;
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 let resolveRefresh: ((value: boolean) => void) | null = null;
@@ -116,10 +154,10 @@ function initTokenClient() {
   tokenClient = window.google.accounts.oauth2.initTokenClient({
     client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
     scope: 'email profile',
-    callback: async (response: any) => {
+    callback: async (response) => {
       isRefreshing = false;
       try {
-        if (response.access_token) {
+        if (isTokenResponse(response)) {
           await handleGoogleSignIn(response);
           console.log('[AutoRefresh] Token refreshed successfully');
           settleRefresh(true);
@@ -132,7 +170,7 @@ function initTokenClient() {
         settleRefresh(false);
       }
     },
-    error_callback: (error: any) => {
+    error_callback: (error) => {
       isRefreshing = false;
       console.error('[AutoRefresh] Token refresh error:', error);
       settleRefresh(false);
@@ -201,9 +239,9 @@ export async function signInWithGoogle(): Promise<GoogleUser> {
     const interactiveClient = window.google?.accounts?.oauth2.initTokenClient({
       client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
       scope: 'email profile',
-      callback: async (response: TokenResponse) => {
+      callback: async (response) => {
         try {
-          if (!response.access_token) {
+          if (!isTokenResponse(response)) {
             reject(new Error('로그인이 취소되었습니다.'));
             return;
           }
@@ -219,7 +257,7 @@ export async function signInWithGoogle(): Promise<GoogleUser> {
           reject(error instanceof Error ? error : new Error('로그인에 실패했습니다.'));
         }
       },
-      error_callback: (error: any) => {
+      error_callback: (error) => {
         console.error('[Google SignIn] initTokenClient error:', error);
         reject(new Error('Google 로그인 팝업을 열 수 없습니다.'));
       },
@@ -435,13 +473,11 @@ declare global {
     google?: {
       accounts: {
         oauth2: {
-          initTokenClient: (config: any) => {
-            requestAccessToken: (config?: any) => void;
-          };
+          initTokenClient: (config: TokenClientConfig) => TokenClient;
           revoke: (token: string) => void;
         };
         id: {
-          initialize: (config: any) => void;
+          initialize: (config: GoogleIdInitializeConfig) => void;
           disableAutoSelect: () => void;
         };
       };
