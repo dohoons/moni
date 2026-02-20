@@ -18,6 +18,6 @@ export function useModalViewportAdjustment({
 
   return {
     marginBottom: keyboardInset,
-    maxHeight: `calc(100dvh - ${bottomGap + keyboardInset}px)`,
+    maxHeight: `calc(100dvh - ${bottomGap + keyboardInset}px - env(safe-area-inset-top, 0px))`,
   };
 }
