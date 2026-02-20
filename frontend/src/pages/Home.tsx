@@ -157,7 +157,7 @@ function Home() {
       groups[record.date].push(record);
     });
     // 날짜 내림차순 정렬 (최신 날짜 먼저)
-    return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a)) as [string, RecordWithMeta[]][];
+    return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
   }, [records]);
 
   // 추가 로드
@@ -350,7 +350,7 @@ function Home() {
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // 낙관적 업데이트: 목록에 즉시 추가
-    const optimisticRecord: Record = {
+    const optimisticRecord: RecordWithMeta = {
       id: tempId,
       date,
       amount: parsed.amount,
@@ -361,8 +361,8 @@ function Home() {
     };
 
     // 캐시에 즉시 추가 (loading 상태로 표시하기 위해 _isSaving 속성 추가)
-    queryClient.setQueryData(['records'], (old: Record[] = []) => {
-      return [{ ...optimisticRecord, _isSaving: true } as Record & { _isSaving?: boolean }, ...old];
+    queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
+      return [{ ...optimisticRecord, _isSaving: true }, ...old];
     });
 
     try {

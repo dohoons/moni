@@ -9,6 +9,7 @@ import { PieChart, Pie, Cell, AreaChart, Area, Line, XAxis, YAxis, Tooltip, Resp
 import YearMonthPickerModal from '../components/YearMonthPickerModal';
 
 type TabType = 'monthly' | 'yearly';
+const EMPTY_BY_CATEGORY: Record<string, number> = {};
 
 // 스켈레톤 컴포넌트
 function ChartSkeleton({ height = "h-48" }: { height?: string }) {
@@ -365,10 +366,10 @@ function Stats() {
 
   // 선택한 기간에 따른 데이터 계산
   const safeCurrentMonth = {
-    byCategory: stats?.currentMonth?.byCategory ?? {} as Record<string, number>,
+    byCategory: stats?.currentMonth?.byCategory ?? EMPTY_BY_CATEGORY,
   };
   const safePreviousMonth = {
-    byCategory: stats?.previousMonth?.byCategory ?? {} as Record<string, number>,
+    byCategory: stats?.previousMonth?.byCategory ?? EMPTY_BY_CATEGORY,
   };
   const safeCurrentMonthDaily = stats?.currentMonthDaily ?? [];
   const safePreviousMonthDaily = stats?.previousMonthDaily ?? [];

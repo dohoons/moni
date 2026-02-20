@@ -5,6 +5,16 @@ const STORAGE_KEY = 'moni_change_history_v1';
 const MAX_ENTRIES = 200;
 
 export type HistoryAction = 'create' | 'update' | 'delete';
+export const HISTORY_FIELD_ENTRIES = [
+  ['date', '날짜'],
+  ['amount', '금액'],
+  ['memo', '메모'],
+  ['method', '결제수단'],
+  ['category', '카테고리'],
+] as const;
+export type HistoryField = (typeof HISTORY_FIELD_ENTRIES)[number][0];
+export const HISTORY_FIELDS: readonly HistoryField[] = HISTORY_FIELD_ENTRIES.map(([field]) => field);
+export const HISTORY_FIELD_LABELS = Object.fromEntries(HISTORY_FIELD_ENTRIES) as Record<HistoryField, string>;
 
 export interface HistoryRecordSnapshot {
   id: string;
@@ -23,7 +33,7 @@ export interface ChangeHistoryEntry {
   recordId: string;
   before: HistoryRecordSnapshot | null;
   after: HistoryRecordSnapshot | null;
-  changedFields: string[];
+  changedFields: Array<HistoryField | '신규' | '삭제'>;
   createdAt: string;
 }
 

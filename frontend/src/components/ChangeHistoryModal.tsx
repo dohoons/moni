@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import {
   clearChangeHistory,
   getChangeHistory,
+  HISTORY_FIELD_LABELS,
   removeChangeHistoryEntry,
   type ChangeHistoryEntry,
+  type HistoryField,
 } from '../services/change-history';
 import { showAlert, showConfirm } from '../services/message-dialog';
 import ModalShell from './ModalShell';
@@ -76,15 +78,7 @@ function ChangeHistoryModal({ isOpen, onClose, onAfterClose, onRestore }: Change
     return '삭제';
   };
 
-  const fieldLabelMap: { [key: string]: string } = {
-    date: '날짜',
-    amount: '금액',
-    memo: '메모',
-    method: '결제수단',
-    category: '카테고리',
-  };
-
-  const formatFieldValue = (field: string, value: unknown) => {
+  const formatFieldValue = (field: HistoryField, value: unknown) => {
     if (field === 'amount') {
       const amount = Number(value || 0);
       return `${amount.toLocaleString()}원`;
@@ -114,11 +108,11 @@ function ChangeHistoryModal({ isOpen, onClose, onAfterClose, onRestore }: Change
     if (!entry.before || !entry.after) return [];
 
     return entry.changedFields
-      .filter((field) => fieldLabelMap[field])
+      .filter((field): field is HistoryField => field in HISTORY_FIELD_LABELS)
       .map((field) => {
-        const beforeValue = formatFieldValue(field, entry.before?.[field as keyof typeof entry.before]);
-        const afterValue = formatFieldValue(field, entry.after?.[field as keyof typeof entry.after]);
-        return `${fieldLabelMap[field]}: ${beforeValue} -> ${afterValue}`;
+        const beforeValue = formatFieldValue(field, entry.before?.[field]);
+        const afterValue = formatFieldValue(field, entry.after?.[field]);
+        return `${HISTORY_FIELD_LABELS[field]}: ${beforeValue} -> ${afterValue}`;
       });
   };
 

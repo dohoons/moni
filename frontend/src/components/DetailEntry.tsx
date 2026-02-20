@@ -128,7 +128,7 @@ function DetailEntryInner({
     if (!category) return;
 
     const validCategories = nextIsIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-    if (!(validCategories as readonly string[]).includes(category)) {
+    if (!validCategories.some((validCategory) => validCategory === category)) {
       setCategory('');
     }
   };
@@ -137,8 +137,8 @@ function DetailEntryInner({
     if (!isOpen || !isMobile) return;
 
     const handleFocusIn = (event: FocusEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
 
       if (
         target instanceof HTMLInputElement ||

@@ -51,7 +51,7 @@ function orderTemplates(templates: Template[], orderedTemplateIds: string[] | nu
   const byId = new Map(templates.map((item) => [item.id, item]));
   const ordered = orderedTemplateIds
     .map((id) => byId.get(id))
-    .filter(Boolean) as Template[];
+    .filter((item): item is Template => item !== undefined);
   const orderedIdSet = new Set(orderedTemplateIds);
   const remaining = templates.filter((item) => !orderedIdSet.has(item.id));
   return [...ordered, ...remaining];
@@ -80,7 +80,9 @@ function buildReorderPayload(ids: string[], templates: Template[]) {
 
 function reorderTemplatesInCache(templates: Template[], ids: string[]) {
   const byId = new Map(templates.map((item) => [item.id, item]));
-  const ordered = ids.map((id) => byId.get(id)).filter(Boolean) as Template[];
+  const ordered = ids
+    .map((id) => byId.get(id))
+    .filter((item): item is Template => item !== undefined);
   const orderedSet = new Set(ordered.map((item) => item.id));
   const remaining = templates.filter((item) => !orderedSet.has(item.id));
 
@@ -244,7 +246,9 @@ function TemplatePickerModal({
   });
 
   const templates = templatesData ?? EMPTY_TEMPLATES;
-  const errorMessage = templatesError ? (templatesError as Error).message : undefined;
+  const errorMessage = templatesError
+    ? (templatesError instanceof Error ? templatesError.message : '템플릿을 불러오지 못했습니다.')
+    : undefined;
   const [orderedTemplateIds, setOrderedTemplateIds] = useState<string[] | null>(null);
   const [skipClickId, setSkipClickId] = useState<string | null>(null);
   const [localSavingOrder, setLocalSavingOrder] = useState(false);
@@ -271,7 +275,7 @@ function TemplatePickerModal({
       return undefined;
     },
     onError: async (error) => {
-      await showAlert('템플릿 순서 저장에 실패했습니다: ' + (error as Error).message);
+      await showAlert('템플릿 순서 저장에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ['templates'] });
@@ -303,7 +307,7 @@ function TemplatePickerModal({
       if (context?.previous) {
         queryClient.setQueryData(['templates'], context.previous);
       }
-      await showAlert('템플릿 삭제에 실패했습니다: ' + (error as Error).message);
+      await showAlert('템플릿 삭제에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
     },
     onSettled: async () => {
       setLocalDeletingId(null);

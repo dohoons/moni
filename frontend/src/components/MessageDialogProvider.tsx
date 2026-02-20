@@ -57,7 +57,8 @@ function MessageDialogOverlay({
       if (event.key !== 'Enter') return;
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.isComposing) return;
 
-      const target = event.target as HTMLElement | null;
+      const target = event.target;
+      if (target !== null && !(target instanceof HTMLElement)) return;
       if (target && (target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
 
       event.preventDefault();

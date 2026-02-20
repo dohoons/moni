@@ -4,6 +4,7 @@ import type { ParsedInput } from '../lib/parser';
 import {
   appendChangeHistory,
   buildAfterSnapshot,
+  HISTORY_FIELDS,
   toHistorySnapshot,
   toParsedInput,
   type ChangeHistoryEntry,
@@ -14,16 +15,8 @@ import type { Record as TransactionRecord } from '../components/DetailEntry';
 
 type RecordLike = TransactionRecord & { updated?: string };
 
-const FIELD_LABELS: { [key: string]: string } = {
-  date: '날짜',
-  amount: '금액',
-  memo: '메모',
-  method: '결제수단',
-  category: '카테고리',
-};
-
 const getChangedFields = (before: HistoryRecordSnapshot, after: HistoryRecordSnapshot) => {
-  return Object.keys(FIELD_LABELS).filter((field) => before[field as keyof HistoryRecordSnapshot] !== after[field as keyof HistoryRecordSnapshot]);
+  return HISTORY_FIELDS.filter((field) => before[field] !== after[field]);
 };
 
 interface CreateWithHistoryInput {
