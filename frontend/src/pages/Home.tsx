@@ -138,6 +138,16 @@ function Home() {
     staleTime: 1 * 60 * 1000, // 1분 캐시
   });
 
+  // Templates Query - 템플릿 모달을 위한 미리 로딩
+  useQuery({
+    queryKey: ['templates'],
+    queryFn: async () => {
+      const response = await api.getTemplates();
+      return response.data || [];
+    },
+    staleTime: 5 * 60 * 1000, // 5분 캐시
+  });
+
   // 레코드를 일자별로 그룹화
   const groupedRecords = useMemo(() => {
     const groups: { [key: string]: (Record & { _isSaving?: boolean })[] } = {};
