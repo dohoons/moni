@@ -318,11 +318,8 @@ export async function initAutoRefresh() {
  */
 function handleForeground(e: Event) {
   // pageshow 이벤트: 캐시에서 복구된 경우만 처리
-  if (e.type === 'pageshow') {
-    const pageEvent = e as PageTransitionEvent;
-    if (!pageEvent.persisted) {
-      return; // 캐시가 아니면 무시
-    }
+  if (e.type === 'pageshow' && 'persisted' in e && !e.persisted) {
+    return; // 캐시가 아니면 무시
   }
 
   // foreground 확인

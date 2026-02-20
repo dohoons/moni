@@ -11,6 +11,32 @@ interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function parseApiResponse(value: unknown): ApiResponse<unknown> | null {
+  if (!isObjectRecord(value)) {
+    return null;
+  }
+
+  const success = value.success;
+  if (typeof success !== 'boolean') {
+    return null;
+  }
+
+  const error = value.error;
+  if (error !== undefined && typeof error !== 'string') {
+    return null;
+  }
+
+  return {
+    success,
+    data: value.data,
+    error,
+  };
+}
+
 export interface ApiRecord {
   id: string;
   date: string;
@@ -108,11 +134,16 @@ async function request<T = unknown>(
     throw new Error('Invalid response');
   }
 
-  let result: ApiResponse<T>;
+  let parsed: unknown;
   try {
-    result = JSON.parse(text) as ApiResponse<T>;
+    parsed = JSON.parse(text);
   } catch {
     throw new Error('Invalid response: ' + text.substring(0, 100));
+  }
+
+  const result = parseApiResponse(parsed);
+  if (!result) {
+    throw new Error('Invalid response shape');
   }
 
   // success: false인 경우 에러로 처리
@@ -133,7 +164,11 @@ async function request<T = unknown>(
     throw new Error(result.error);
   }
 
-  return result;
+  return {
+    success: result.success,
+    data: result.data as T,
+    error: result.error,
+  };
 }
 
 export const api = {

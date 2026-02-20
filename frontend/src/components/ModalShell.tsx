@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import type { CSSProperties, HTMLAttributes, MutableRefObject, ReactNode, Ref } from 'react';
+import type { CSSProperties, HTMLAttributes, ReactNode, Ref } from 'react';
 import { RemoveScroll } from 'react-remove-scroll';
 import { useModalViewportAdjustment } from '../hooks/useModalViewportAdjustment';
 import { usePullDownToClose } from '../hooks/usePullDownToClose';
@@ -32,7 +32,7 @@ interface ModalShellProps {
   overlayClassName?: string;
   panelClassName?: string;
   children: ReactNode;
-  panelRef?: Ref<HTMLDivElement>;
+  panelRef?: Ref<HTMLDivElement | null>;
   panelStyle?: CSSProperties;
   overlayStyle?: CSSProperties;
   panelProps?: HTMLAttributes<HTMLDivElement>;
@@ -190,13 +190,11 @@ function ModalShell({
   const setPanelRef = (node: HTMLDivElement | null) => {
     pullDownToClose.panelRef.current = node;
     if (!panelRef) return;
-
     if (typeof panelRef === 'function') {
       panelRef(node);
       return;
     }
-
-    (panelRef as MutableRefObject<HTMLDivElement | null>).current = node;
+    panelRef.current = node;
   };
 
   if (!isRendered) return null;

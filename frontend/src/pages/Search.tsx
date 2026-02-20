@@ -15,13 +15,6 @@ type SearchRecord = TransactionRecord & {
 
 const PAGE_SIZE = 40;
 
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  return fallback;
-}
-
 function Search() {
   const navigate = useNavigate();
   const { updateRecord, deleteRecord, toSnapshot } = useRecordsController();
@@ -68,7 +61,7 @@ function Search() {
       }
     } catch (err) {
       console.error('Failed to search records:', err);
-      setError(getErrorMessage(err, '검색 중 오류가 발생했습니다.'));
+      setError(err instanceof Error && err.message ? err.message : '검색 중 오류가 발생했습니다.');
       setRecords([]);
       setCursor(null);
     } finally {
@@ -105,7 +98,7 @@ function Search() {
       setRecords((prev) => [...prev, ...nextRecords]);
     } catch (err) {
       console.error('Failed to load more search results:', err);
-      setError(getErrorMessage(err, '검색 결과를 더 불러오지 못했습니다.'));
+      setError(err instanceof Error && err.message ? err.message : '검색 결과를 더 불러오지 못했습니다.');
       setCursor(null);
     } finally {
       setLoadingMore(false);
@@ -191,7 +184,7 @@ function Search() {
       });
     } catch (err) {
       console.error('Failed to update record:', err);
-      await showAlert('기록 수정에 실패했습니다: ' + getErrorMessage(err, '알 수 없는 오류'));
+      await showAlert('기록 수정에 실패했습니다: ' + (err instanceof Error && err.message ? err.message : '알 수 없는 오류'));
 
       setRecords((old) =>
         old.map((record) =>
@@ -220,7 +213,7 @@ function Search() {
       setRecords((old) => old.filter((record) => record.id !== id));
     } catch (err) {
       console.error('Failed to delete record:', err);
-      await showAlert('기록 삭제에 실패했습니다: ' + getErrorMessage(err, '알 수 없는 오류'));
+      await showAlert('기록 삭제에 실패했습니다: ' + (err instanceof Error && err.message ? err.message : '알 수 없는 오류'));
 
       setRecords((old) =>
         old.map((record) =>
