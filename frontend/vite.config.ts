@@ -25,7 +25,6 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['vite.svg', 'icon-192.png', 'icon-512.png', 'favicon.png'],
       manifest: {
         name: 'Moni - 가계부 앱',
         short_name: 'Moni',
