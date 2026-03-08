@@ -397,6 +397,11 @@ function Home() {
           };
         });
       });
+
+      // 온라인 성공 시 목록 재검증
+      if (!result.queued) {
+        await queryClient.invalidateQueries({ queryKey: ['records'] });
+      }
     } catch (error) {
       console.error('Failed to create record:', error);
       await showAlert('기록 저장에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
@@ -447,6 +452,11 @@ function Home() {
       queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
         return old.map(r => r.id === id ? { ...r, _isSaving: false, _original: undefined } : r);
       });
+
+      // 온라인 성공 시 목록 재검증
+      if (!result.queued) {
+        await queryClient.invalidateQueries({ queryKey: ['records'] });
+      }
       restoreScrollAnchor();
     } catch (error) {
       console.error('Failed to update record:', error);
@@ -480,6 +490,11 @@ function Home() {
       queryClient.setQueryData(['records'], (old: Record[] = []) => {
         return old.filter(r => r.id !== id);
       });
+
+      // 온라인 성공 시 목록 재검증
+      if (!result.queued) {
+        await queryClient.invalidateQueries({ queryKey: ['records'] });
+      }
     } catch (error) {
       console.error('Failed to delete record:', error);
       await showAlert('기록 삭제에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
