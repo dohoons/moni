@@ -76,6 +76,35 @@ let resolveRefresh: ((value: boolean) => void) | null = null;
 let gsiLoadPromise: Promise<void> | null = null;
 let isAutoRefreshInitialized = false;
 
+// iOS PWA 환경 감지
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+const isIOSPWA = isIOS && isStandalone;
+
+// 사용자 상호작용 추적 (iOS PWA 팝업 방지용)
+let hasUserInteracted = false;
+let interactionPromise: Promise<void> | null = null;
+let resolveInteraction: (() => void) | null = null;
+
+if (typeof window !== 'undefined') {
+  interactionPromise = new Promise((resolve) => {
+    resolveInteraction = resolve;
+  });
+
+  const handleFirstInteraction = () => {
+    if (!hasUserInteracted) {
+      console.log('[Auth] First user interaction detected');
+      hasUserInteracted = true;
+      if (resolveInteraction) resolveInteraction();
+    }
+    window.removeEventListener('touchstart', handleFirstInteraction);
+    window.removeEventListener('mousedown', handleFirstInteraction);
+  };
+
+  window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
+  window.addEventListener('mousedown', handleFirstInteraction, { passive: true });
+}
+
 function settleRefresh(result: boolean) {
   if (resolveRefresh) {
     resolveRefresh(result);
@@ -353,6 +382,13 @@ function handleForeground(e: Event) {
  */
 async function refreshAccessToken(options: { dispatchExpiredEvent?: boolean } = {}): Promise<boolean> {
   const { dispatchExpiredEvent = true } = options;
+
+  // iOS PWA 팝업 방지 가드: 첫 사용자 상호작용 전에는 대기
+  if (isIOSPWA && !hasUserInteracted && interactionPromise) {
+    console.warn('[Auth] Waiting for first user interaction before silent refresh (iOS PWA)');
+    await interactionPromise;
+    console.log('[Auth] Interaction detected, proceeding with refresh');
+  }
 
   try {
     await ensureGoogleIdentityLoaded();
