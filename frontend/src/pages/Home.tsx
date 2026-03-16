@@ -349,7 +349,7 @@ function Home() {
     const date = getTodayDate();
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 낙관적 업데이트: 목록에 즉시 추가
+    // 낙관적 업데이트를 위한 레코드 객체 (변경이력용)
     const optimisticRecord: RecordWithMeta = {
       id: tempId,
       date,
@@ -360,10 +360,12 @@ function Home() {
       created: new Date().toISOString(),
     };
 
-    // 캐시에 즉시 추가 (loading 상태로 표시하기 위해 _isSaving 속성 추가)
-    queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
-      return [{ ...optimisticRecord, _isSaving: true }, ...old];
-    });
+    // 초기 로딩 중이 아니면 낙관적 업데이트로 즉시 추가
+    if (!isPending) {
+      queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
+        return [{ ...optimisticRecord, _isSaving: true }, ...old];
+      });
+    }
 
     try {
       const result = await createRecord({
@@ -386,20 +388,8 @@ function Home() {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
-      // 온라인 저장 시 임시 ID를 실제 ID로 즉시 교체 (수정 시 Record not found 방지)
-      queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
-        return old.map(r => {
-          if (r.id !== tempId) return r;
-          return {
-            ...r,
-            id: result.createdId || r.id,
-            _isSaving: false,
-          };
-        });
-      });
-
-      // 온라인 성공 시 목록 재검증
-      if (!result.queued) {
+      // 초기 로딩 중이었으면 여기서 갱신
+      if (isPending) {
         await queryClient.invalidateQueries({ queryKey: ['records'] });
       }
     } catch (error) {
@@ -453,10 +443,6 @@ function Home() {
         return old.map(r => r.id === id ? { ...r, _isSaving: false, _original: undefined } : r);
       });
 
-      // 온라인 성공 시 목록 재검증
-      if (!result.queued) {
-        await queryClient.invalidateQueries({ queryKey: ['records'] });
-      }
       restoreScrollAnchor();
     } catch (error) {
       console.error('Failed to update record:', error);
@@ -490,11 +476,6 @@ function Home() {
       queryClient.setQueryData(['records'], (old: Record[] = []) => {
         return old.filter(r => r.id !== id);
       });
-
-      // 온라인 성공 시 목록 재검증
-      if (!result.queued) {
-        await queryClient.invalidateQueries({ queryKey: ['records'] });
-      }
     } catch (error) {
       console.error('Failed to delete record:', error);
       await showAlert('기록 삭제에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
