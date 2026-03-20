@@ -1,34 +1,28 @@
-import { useState, useMemo, useRef, useCallback, useEffect, useEffectEvent } from 'react';
+import { useState, useMemo, useRef, useEffect, useEffectEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { overlay } from 'overlay-kit';
 import { api, type Template } from '../services/api';
 import { useRecordsController } from '../hooks/useRecordsController';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { useAuth } from '../contexts/AuthContext';
 import SmartEntry from '../components/SmartEntry';
 import DetailEntry, { type Record } from '../components/DetailEntry';
 import RecordListItem from '../components/RecordListItem';
+import SkeletonItem from '../components/SkeletonItem';
+import RefreshFab from '../components/RefreshFab';
+import ErrorState from '../components/ErrorState';
+import EmptyState from '../components/EmptyState';
 import SyncIndicator from '../components/SyncIndicator';
 import SyncQueueModal from '../components/SyncQueueModal';
 import ChangeHistoryModal from '../components/ChangeHistoryModal';
 import { useTemplatePicker } from '../components/TemplatePickerModal';
 import { useTemplateSave } from '../components/TemplateSaveModal';
 import type { ParsedInput } from '../lib/parser';
-import { getTodayDate } from '../lib/date';
-import { WEEKDAYS } from '../constants';
+import { getTodayDate, formatDate } from '../lib/date';
 import { showAlert, showConfirm } from '../services/message-dialog';
 
-// 날짜 포맷 함수 (1월 15일 같은 형식)
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const weekday = WEEKDAYS[date.getDay()];
-  return `${month}월 ${day}일 (${weekday})`;
-};
-
 const PAGE_SIZE = 40;
-type RefreshSource = 'pull' | 'manual';
 type RecordWithMeta = Record & { _isSaving?: boolean; _original?: Record };
 
 function Home() {
@@ -41,15 +35,11 @@ function Home() {
   const [quickParsed, setQuickParsed] = useState<ParsedInput | null>(null);
   const [quickEntryResetSignal, setQuickEntryResetSignal] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshSource, setRefreshSource] = useState<RefreshSource | null>(null);
-  const [pullDistance, setPullDistance] = useState(0);
   const [bottomTriggerMargin, setBottomTriggerMargin] = useState(0);
   const [titleBarBottom, setTitleBarBottom] = useState(() => {
     return document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
   });
   const scrollAnchorRef = useRef<{ id: string; top: number } | null>(null);
-  const pullStartYRef = useRef<number | null>(null);
-  const isPullingRef = useRef(false);
   // 초기 로딩 중 낙관적 업데이트 임시 저장
   const pendingOptimisticRecords = useRef<RecordWithMeta[]>([]);
 
@@ -65,20 +55,11 @@ function Home() {
     isOnline,
     pendingCount,
   } = useRecordsController();
+
   const { openTemplatePickerModal } = useTemplatePicker();
   const { openTemplateSaveModal } = useTemplateSave();
 
-  const findRecordElementById = useCallback((id: string): HTMLElement | null => {
-    const elements = document.querySelectorAll<HTMLElement>('[data-record-id]');
-    for (const element of elements) {
-      if (element.dataset.recordId === id) {
-        return element;
-      }
-    }
-    return null;
-  }, []);
-
-  const captureScrollAnchor = useCallback(() => {
+  const captureScrollAnchor = () => {
     const headerBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0;
     const elements = document.querySelectorAll<HTMLElement>('[data-record-id]');
 
@@ -92,14 +73,14 @@ function Home() {
         return;
       }
     }
-  }, []);
+  };
 
-  const restoreScrollAnchor = useCallback(() => {
+  const restoreScrollAnchor = () => {
     const anchor = scrollAnchorRef.current;
     if (!anchor) return;
 
     const restore = () => {
-      const target = findRecordElementById(anchor.id);
+      const target = document.querySelector<HTMLElement>(`[data-record-id="${anchor.id}"]`);
       if (!target) return;
       const currentTop = target.getBoundingClientRect().top;
       const delta = currentTop - anchor.top;
@@ -115,7 +96,7 @@ function Home() {
         scrollAnchorRef.current = null;
       });
     });
-  }, [findRecordElementById]);
+  };
 
   // Records Query - React Query로 캐싱
   const {
@@ -143,6 +124,19 @@ function Home() {
       return records;
     },
     staleTime: 1 * 60 * 1000, // 1분 캐시
+  });
+
+  const {
+    refreshSource,
+    pullDistance,
+    handleManualRefresh,
+    handleMainTouchStart,
+    handleMainTouchMove,
+    handleMainTouchEnd,
+  } = usePullToRefresh({
+    onRefresh: async () => { await loadRecords(); },
+    isRefreshing,
+    setIsRefreshing,
   });
 
   // Templates Query - 템플릿 모달을 위한 미리 로딩
@@ -299,55 +293,6 @@ function Home() {
     logout();
     navigate('/login', { replace: true });
   };
-
-  const handleManualRefresh = useCallback(async (source: RefreshSource = 'manual') => {
-    if (isRefreshing) return;
-
-    setRefreshSource(source);
-    setIsRefreshing(true);
-    try {
-      await loadRecords();
-    } finally {
-      setIsRefreshing(false);
-      setRefreshSource(null);
-    }
-  }, [isRefreshing, loadRecords]);
-
-  const handleMainTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    if (window.scrollY > 2 || isRefreshing) return;
-    if (e.touches.length !== 1) return;
-
-    pullStartYRef.current = e.touches[0].clientY;
-    isPullingRef.current = false;
-  }, [isRefreshing]);
-
-  const handleMainTouchMove = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    if (pullStartYRef.current === null) return;
-    if (window.scrollY > 2) return;
-
-    const deltaY = e.touches[0].clientY - pullStartYRef.current;
-    if (deltaY <= 0) return;
-
-    isPullingRef.current = true;
-    const nextDistance = Math.min(96, deltaY * 0.45);
-    setPullDistance(nextDistance);
-
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-  }, []);
-
-  const handleMainTouchEnd = useCallback(() => {
-    const shouldRefresh = isPullingRef.current && pullDistance >= 56;
-
-    pullStartYRef.current = null;
-    isPullingRef.current = false;
-    setPullDistance(0);
-
-    if (shouldRefresh) {
-      void handleManualRefresh('pull');
-    }
-  }, [pullDistance, handleManualRefresh]);
 
   const handleEntrySubmit = async (parsed: ParsedInput, templateUseId: string | null = null) => {
     // 빠른기록 입력창/파싱 상태 초기화 (상세기록에서 전송한 경우 포함)
@@ -567,31 +512,25 @@ function Home() {
     });
   };
 
-  const openSyncQueueModal = useCallback(
-    () =>
-      overlay.openAsync<void>(({ isOpen, close, unmount }) => (
-        <SyncQueueModal
-          isOpen={isOpen}
-          onClose={() => close(undefined)}
-          onAfterClose={unmount}
-          onRecordsUpdated={loadRecords}
-        />
-      )),
-    [loadRecords]
-  );
+  const openSyncQueueModal = () =>
+    overlay.openAsync<void>(({ isOpen, close, unmount }) => (
+      <SyncQueueModal
+        isOpen={isOpen}
+        onClose={() => close(undefined)}
+        onAfterClose={unmount}
+        onRecordsUpdated={loadRecords}
+      />
+    ));
 
-  const openHistoryModal = useCallback(
-    () =>
-      overlay.openAsync<void>(({ isOpen, close, unmount }) => (
-        <ChangeHistoryModal
-          isOpen={isOpen}
-          onClose={() => close(undefined)}
-          onAfterClose={unmount}
-          onRestore={(entry) => restoreHistory(entry, { onRestored: async () => { await loadRecords(); } })}
-        />
-      )),
-    [loadRecords, restoreHistory]
-  );
+  const openHistoryModal = () =>
+    overlay.openAsync<void>(({ isOpen, close, unmount }) => (
+      <ChangeHistoryModal
+        isOpen={isOpen}
+        onClose={() => close(undefined)}
+        onAfterClose={unmount}
+        onRestore={(entry) => restoreHistory(entry, { onRestored: async () => { await loadRecords(); } })}
+      />
+    ));
 
   if (setupRequired) {
     return (
@@ -768,49 +707,17 @@ function Home() {
                     <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
                   </div>
                   <div className="space-y-2">
-                    {/* 스켈레톤: 각 날짜별 2-3개 아이템 */}
                     {Array.from({ length: i % 2 + 2 }).map((_, j) => (
-                      <div key={j} className="flex items-center justify-between rounded-xl bg-white p-4 shadow-sm">
-                        <div className="flex-1">
-                          <div className="mb-1 h-5 w-32 animate-pulse rounded bg-gray-200" />
-                          <div className="flex gap-2">
-                            <div className="h-5 w-16 animate-pulse rounded-full bg-gray-200" />
-                            <div className="h-5 w-12 animate-pulse rounded-full bg-gray-200" />
-                          </div>
-                        </div>
-                        <div className="ml-4 h-5 w-20 animate-pulse rounded bg-gray-200" />
-                      </div>
+                      <SkeletonItem key={j} />
                     ))}
                   </div>
                 </div>
               ))}
             </div>
           ) : error && !records.length ? (
-            <div className="flex items-center justify-center rounded-xl bg-white py-12 shadow-sm">
-              <div className="text-center">
-                <svg className="mx-auto mb-3 h-12 w-12 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <p className="text-sm text-gray-500">기록을 불러오는데 실패했습니다.</p>
-                <p className="mt-1 text-xs text-gray-400">{error.message}</p>
-                <button
-                  onClick={() => void handleManualRefresh()}
-                  className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                >
-                  다시 시도
-                </button>
-              </div>
-            </div>
+            <ErrorState message={error.message} onRetry={() => void handleManualRefresh()} />
           ) : !records.length ? (
-            <div className="flex items-center justify-center rounded-xl bg-white py-12 shadow-sm">
-              <div className="text-center">
-                <svg className="mx-auto mb-3 h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-sm text-gray-500">아직 기록이 없습니다.</p>
-                <p className="mt-1 text-xs text-gray-400">위에서 첫 기록을 추가해보세요!</p>
-              </div>
-            </div>
+            <EmptyState message="아직 기록이 없습니다." submessage="위에서 첫 기록을 추가해보세요!" />
           ) : (
             <div className="space-y-6">
               {groupedRecords.map(([date, dateRecords]) => (
@@ -842,18 +749,8 @@ function Home() {
               <div ref={observerTarget} className="space-y-2 py-6">
                 {loadingMore && (
                   <>
-                    {/* 스켈레톤: 2개 아이템 */}
                     {Array.from({ length: 2 }).map((_, i) => (
-                      <div key={i} className="flex items-center justify-between rounded-xl bg-white p-4 shadow-sm">
-                        <div className="flex-1">
-                          <div className="mb-1 h-5 w-32 animate-pulse rounded bg-gray-200" />
-                          <div className="flex gap-2">
-                            <div className="h-5 w-16 animate-pulse rounded-full bg-gray-200" />
-                            <div className="h-5 w-12 animate-pulse rounded-full bg-gray-200" />
-                          </div>
-                        </div>
-                        <div className="ml-4 h-5 w-20 animate-pulse rounded bg-gray-200" />
-                      </div>
+                      <SkeletonItem key={i} />
                     ))}
                   </>
                 )}
@@ -866,23 +763,7 @@ function Home() {
         </section>
       </main>
 
-      <button
-        onClick={() => void handleManualRefresh()}
-        disabled={isRefreshing}
-        aria-label={isRefreshing ? '새로고침 중' : '새로고침'}
-        className="safe-area-fab fixed right-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg ring-1 ring-gray-200 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isRefreshing ? (
-          <span
-            className="block h-5 w-5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent"
-            aria-hidden="true"
-          />
-        ) : (
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        )}
-      </button>
+      <RefreshFab isRefreshing={isRefreshing} onRefresh={() => void handleManualRefresh()} />
     </div>
   );
 }

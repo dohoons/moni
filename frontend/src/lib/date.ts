@@ -1,3 +1,5 @@
+import { WEEKDAYS } from '../constants';
+
 const KST_TIME_ZONE = 'Asia/Seoul';
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -37,4 +39,13 @@ export function getMonthRange(year: number, month: number): { startDate: string;
     startDate: `${year}-${monthText}-01`,
     endDate: `${year}-${monthText}-${pad2(lastDay)}`,
   };
+}
+
+// 날짜 포맷 함수 (1월 15일 같은 형식)
+export function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const weekday = WEEKDAYS[date.getDay()];
+  return `${month}월 ${day}일 (${weekday})`;
 }

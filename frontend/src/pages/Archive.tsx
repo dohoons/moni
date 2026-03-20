@@ -1,24 +1,22 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { overlay } from 'overlay-kit';
 import DetailEntry, { type Record as TransactionRecord } from '../components/DetailEntry';
 import ChangeHistoryModal from '../components/ChangeHistoryModal';
 import RecordListItem from '../components/RecordListItem';
+import SkeletonItem from '../components/SkeletonItem';
+import RefreshFab from '../components/RefreshFab';
+import ErrorState from '../components/ErrorState';
+import EmptyState from '../components/EmptyState';
 import { useRecordsController } from '../hooks/useRecordsController';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { api } from '../services/api';
-import { WEEKDAYS } from '../constants';
+import { formatDate } from '../lib/date';
 import type { ParsedInput } from '../lib/parser';
 import { getMonthRange } from '../lib/date';
 import { showAlert } from '../services/message-dialog';
 import YearMonthPickerModal from '../components/YearMonthPickerModal';
-
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const weekday = WEEKDAYS[date.getDay()];
-  return `${month}월 ${day}일 (${weekday})`;
-};
 
 const getCurrentYearMonth = () => {
   const now = new Date();
@@ -41,11 +39,11 @@ const isDateInCurrentMonth = (date: string, yearMonth: { year: number; month: nu
 
 const MONTH_FETCH_LIMIT = 99999;
 const STICKY_TITLEBAR_GAP = 8;
-type RefreshSource = 'pull' | 'manual';
 
 function Archive() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const now = new Date();
   const defaultYear = now.getFullYear();
   const {
@@ -62,12 +60,7 @@ function Archive() {
     const month = Number.isInteger(urlMonth) && urlMonth >= 1 && urlMonth <= 12 ? urlMonth : current.month;
     return { year, month };
   });
-  const [records, setRecords] = useState<ArchiveRecord[]>([]);
-  const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshSource, setRefreshSource] = useState<RefreshSource | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pullDistance, setPullDistance] = useState(0);
   const monthSummaryRef = useRef<HTMLDivElement>(null);
   const [stickyOffsets, setStickyOffsets] = useState(() => {
     const titleBarBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 76;
@@ -76,45 +69,39 @@ function Archive() {
       dayHeadingTop: titleBarBottom + STICKY_TITLEBAR_GAP + 112,
     };
   });
-  const pullStartYRef = useRef<number | null>(null);
-  const isPullingRef = useRef(false);
 
-  const loadRecords = useCallback(
-    async (isRefresh = false) => {
-      if (isRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      setError(null);
-
-      try {
-        const { startDate, endDate } = getMonthRange(yearMonth.year, yearMonth.month);
-        const response = await api.getRecords({
-          startDate,
-          endDate,
-          limit: MONTH_FETCH_LIMIT,
-        });
-
-        setRecords(response.data || []);
-      } catch (error) {
-        console.error('Failed to load records:', error);
-        setError(error instanceof Error ? error.message : '기록을 불러오는데 실패했습니다.');
-        setRecords([]);
-      } finally {
-        if (isRefresh) {
-          setIsRefreshing(false);
-        } else {
-          setLoading(false);
-        }
-      }
+  const {
+    data: records = [],
+    isPending,
+    error,
+    refetch: loadRecords,
+  } = useQuery<ArchiveRecord[]>({
+    queryKey: ['archive', yearMonth.year, yearMonth.month],
+    queryFn: async () => {
+      const { startDate, endDate } = getMonthRange(yearMonth.year, yearMonth.month);
+      const response = await api.getRecords({
+        startDate,
+        endDate,
+        limit: MONTH_FETCH_LIMIT,
+      });
+      return response.data || [];
     },
-    [yearMonth.year, yearMonth.month]
-  );
+    staleTime: 5 * 60 * 1000, // 5분 캐시
+  });
 
-  useEffect(() => {
-    void loadRecords(false);
-  }, [loadRecords]);
+  const {
+    refreshSource,
+    pullDistance,
+    handleManualRefresh,
+    handleMainTouchStart,
+    handleMainTouchMove,
+    handleMainTouchEnd,
+  } = usePullToRefresh({
+    onRefresh: async () => { await loadRecords(); },
+    isRefreshing,
+    isLoading: isPending,
+    setIsRefreshing,
+  });
 
   useEffect(() => {
     const currentYear = searchParams.get('year');
@@ -160,16 +147,6 @@ function Archive() {
       window.removeEventListener('orientationchange', updateStickyOffsets);
     };
   }, [yearMonth.year, yearMonth.month, records.length]);
-
-  const handleManualRefresh = useCallback(async (source: RefreshSource = 'manual') => {
-    if (isRefreshing || loading) return;
-    setRefreshSource(source);
-    try {
-      await loadRecords(true);
-    } finally {
-      setRefreshSource(null);
-    }
-  }, [isRefreshing, loading, loadRecords]);
 
   const groupedRecords = useMemo(() => {
     const groups: { [key: string]: ArchiveRecord[] } = {};
@@ -243,49 +220,51 @@ function Archive() {
     const targetRecord = records.find((record) => record.id === id);
     const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
 
-    setRecords((old) =>
-      old.map((record) => (record.id === id ? { ...record, _original: { ...record }, _isSaving: true } : record))
+    // 원본 레코드 저장 (롤백용)
+    queryClient.setQueryData<ArchiveRecord[]>(['archive', yearMonth.year, yearMonth.month], (old = []) =>
+      old.map(r => r.id === id ? { ...r, _original: { ...r }, _isSaving: true } : r)
     );
 
-    setRecords((old) =>
-      old.map((record) =>
-        record.id === id
-          ? {
-              ...record,
-              amount: parsed.amount !== undefined ? parsed.amount : record.amount,
-              memo: parsed.memo !== undefined ? parsed.memo || '' : record.memo,
-              method: parsed.method !== undefined ? parsed.method : record.method,
-              category: parsed.category !== undefined ? parsed.category : record.category,
-              date,
-              _isSaving: true,
-            }
-          : record
-      )
+    // 낙관적 업데이트: 즉시 반영
+    queryClient.setQueryData<ArchiveRecord[]>(['archive', yearMonth.year, yearMonth.month], (old = []) =>
+      old.map(r => {
+        if (r.id === id) {
+          return {
+            ...r,
+            amount: parsed.amount !== undefined ? parsed.amount : r.amount,
+            memo: parsed.memo !== undefined ? (parsed.memo || '') : r.memo,
+            method: parsed.method !== undefined ? parsed.method : r.method,
+            category: parsed.category !== undefined ? parsed.category : r.category,
+            date,
+            _isSaving: true,
+          };
+        }
+        return r;
+      })
     );
 
     try {
       const result = await updateRecord(id, parsed, date, beforeSnapshot);
+
       if (result.queued) {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
-      if (!isDateInCurrentMonth(date, yearMonth)) {
-        await loadRecords(true);
-        return;
-      }
-
-      setRecords((old) =>
-        old.map((record) => (record.id === id ? { ...record, _isSaving: false, _original: undefined } : record))
+      // 저장 완료 후 로딩 상태 제거
+      queryClient.setQueryData<ArchiveRecord[]>(['archive', yearMonth.year, yearMonth.month], (old = []) =>
+        old.map(r => r.id === id ? { ...r, _isSaving: false, _original: undefined } : r)
       );
+
+      // 다른 월로 이동한 경우 데이터 다시 로딩
+      if (!isDateInCurrentMonth(date, yearMonth)) {
+        await loadRecords();
+      }
     } catch (error) {
       console.error('Failed to update record:', error);
       await showAlert('기록 수정에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
-      setRecords((old) =>
-        old.map((record) =>
-          record.id === id && record._original
-            ? { ...record._original, _isSaving: false, _original: undefined }
-            : record
-        )
+      // 실패 시 롤백
+      queryClient.setQueryData<ArchiveRecord[]>(['archive', yearMonth.year, yearMonth.month], (old = []) =>
+        old.map(r => r._original && r.id === id ? r._original : r)
       );
     }
   };
@@ -294,26 +273,28 @@ function Archive() {
     const targetRecord = records.find((record) => record.id === id);
     const beforeSnapshot = targetRecord ? toSnapshot(targetRecord) : null;
 
-    setRecords((old) =>
-      old.map((record) => (record.id === id ? { ...record, _original: { ...record }, _isSaving: true } : record))
+    // 원본 레코드 저장 (롤백용) + 로딩 상태 표시
+    queryClient.setQueryData<ArchiveRecord[]>(['archive', yearMonth.year, yearMonth.month], (old = []) =>
+      old.map(r => r.id === id ? { ...r, _original: { ...r }, _isSaving: true } : r)
     );
 
     try {
       const result = await deleteRecord(id, beforeSnapshot);
+
       if (result.queued) {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
-      setRecords((old) => old.filter((record) => record.id !== id));
+      // 성공 시 목록에서 완전히 제거
+      queryClient.setQueryData<ArchiveRecord[]>(['archive', yearMonth.year, yearMonth.month], (old = []) =>
+        old.filter(r => r.id !== id)
+      );
     } catch (error) {
       console.error('Failed to delete record:', error);
       await showAlert('기록 삭제에 실패했습니다: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
-      setRecords((old) =>
-        old.map((record) =>
-          record.id === id && record._original
-            ? { ...record._original, _isSaving: false, _original: undefined }
-            : record
-        )
+      // 실패 시 롤백
+      queryClient.setQueryData<ArchiveRecord[]>(['archive', yearMonth.year, yearMonth.month], (old = []) =>
+        old.map(r => r._original && r.id === id ? { ...r._original, _isSaving: false } : r)
       );
     }
   };
@@ -349,48 +330,9 @@ function Archive() {
         isOpen={isOpen}
         onClose={() => close(undefined)}
         onAfterClose={unmount}
-        onRestore={(entry) => restoreHistory(entry, { onRestored: () => loadRecords(true) })}
+        onRestore={(entry) => restoreHistory(entry, { onRestored: async () => { await loadRecords(); } })}
       />
     ));
-
-  const handleMainTouchStart = useCallback(
-    (e: React.TouchEvent<HTMLElement>) => {
-      if (window.scrollY > 2 || isRefreshing || loading) return;
-      if (e.touches.length !== 1) return;
-
-      pullStartYRef.current = e.touches[0].clientY;
-      isPullingRef.current = false;
-    },
-    [isRefreshing, loading]
-  );
-
-  const handleMainTouchMove = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    if (pullStartYRef.current === null) return;
-    if (window.scrollY > 2) return;
-
-    const deltaY = e.touches[0].clientY - pullStartYRef.current;
-    if (deltaY <= 0) return;
-
-    isPullingRef.current = true;
-    const nextDistance = Math.min(96, deltaY * 0.45);
-    setPullDistance(nextDistance);
-
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-  }, []);
-
-  const handleMainTouchEnd = useCallback(() => {
-    const shouldRefresh = isPullingRef.current && pullDistance >= 56;
-
-    pullStartYRef.current = null;
-    isPullingRef.current = false;
-    setPullDistance(0);
-
-    if (shouldRefresh) {
-      void handleManualRefresh('pull');
-    }
-  }, [pullDistance, handleManualRefresh]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -481,7 +423,7 @@ function Archive() {
           </div>
         </div>
 
-        {loading ? (
+        {isPending ? (
           <div className="space-y-6">
             {[1, 2, 3].map((i) => (
               <div key={i}>
@@ -490,56 +432,16 @@ function Archive() {
                 </div>
                 <div className="space-y-2">
                   {Array.from({ length: i % 2 + 2 }).map((_, j) => (
-                    <div key={j} className="flex items-center justify-between rounded-xl bg-white p-4 shadow-sm">
-                      <div className="flex-1">
-                        <div className="mb-1 h-5 w-32 animate-pulse rounded bg-gray-200" />
-                        <div className="flex gap-2">
-                          <div className="h-5 w-16 animate-pulse rounded-full bg-gray-200" />
-                          <div className="h-5 w-12 animate-pulse rounded-full bg-gray-200" />
-                        </div>
-                      </div>
-                      <div className="ml-4 h-5 w-20 animate-pulse rounded bg-gray-200" />
-                    </div>
+                    <SkeletonItem key={j} />
                   ))}
                 </div>
               </div>
             ))}
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center rounded-xl bg-white py-12 shadow-sm">
-            <div className="text-center">
-              <svg className="mx-auto mb-3 h-12 w-12 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <p className="text-sm text-gray-500">기록을 불러오는데 실패했습니다.</p>
-              <p className="mt-1 text-xs text-gray-400">{error}</p>
-              <button
-                onClick={() => void handleManualRefresh()}
-                className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                다시 시도
-              </button>
-            </div>
-          </div>
+          <ErrorState message={error.message} onRetry={() => void handleManualRefresh()} />
         ) : records.length === 0 ? (
-          <div className="flex items-center justify-center rounded-xl bg-white py-12 shadow-sm">
-            <div className="text-center">
-              <svg className="mx-auto mb-3 h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <p className="text-sm text-gray-500">이달의 기록이 없습니다.</p>
-            </div>
-          </div>
+          <EmptyState message="이달의 기록이 없습니다." />
         ) : (
           <div className="space-y-6">
             {groupedRecords.map(([date, dateRecords]) => (
@@ -567,28 +469,7 @@ function Archive() {
         )}
       </main>
 
-      <button
-        onClick={() => void handleManualRefresh()}
-        disabled={isRefreshing || loading}
-        aria-label={isRefreshing ? '새로고침 중' : '새로고침'}
-        className="safe-area-fab fixed right-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg ring-1 ring-gray-200 transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isRefreshing ? (
-          <span
-            className="block h-5 w-5 animate-spin rounded-full border-2 border-gray-500 border-t-transparent"
-            aria-hidden="true"
-          />
-        ) : (
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        )}
-      </button>
+      <RefreshFab isRefreshing={isRefreshing} isLoading={isPending} onRefresh={() => void handleManualRefresh()} />
     </div>
   );
 }
