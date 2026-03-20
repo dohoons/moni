@@ -50,6 +50,8 @@ function Home() {
   const scrollAnchorRef = useRef<{ id: string; top: number } | null>(null);
   const pullStartYRef = useRef<number | null>(null);
   const isPullingRef = useRef(false);
+  // 초기 로딩 중 낙관적 업데이트 임시 저장
+  const pendingOptimisticRecords = useRef<RecordWithMeta[]>([]);
 
   // Intersection Observer용 ref
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -131,6 +133,12 @@ function Home() {
         setCursor(`${lastRecord.date}|${lastRecord.id}`);
       } else {
         setCursor(null);
+      }
+      // 초기 로딩 중 임시 저장된 낙관적 업데이트가 있으면 병합
+      if (pendingOptimisticRecords.current.length > 0) {
+        const merged = [...pendingOptimisticRecords.current, ...records];
+        pendingOptimisticRecords.current = [];
+        return merged;
       }
       return records;
     },
@@ -360,8 +368,10 @@ function Home() {
       created: new Date().toISOString(),
     };
 
-    // 초기 로딩 중이 아니면 낙관적 업데이트로 즉시 추가
-    if (!isPending) {
+    // 초기 로딩 중이면 낙관적 업데이트를 임시 저장, 아니면 즉시 반영
+    if (isPending) {
+      pendingOptimisticRecords.current.push({ ...optimisticRecord, _isSaving: true });
+    } else {
       queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
         return [{ ...optimisticRecord, _isSaving: true }, ...old];
       });
@@ -388,15 +398,23 @@ function Home() {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
-      // 온라인 상태에서 실제 ID를 받은 경우 캐시 업데이트 (tempId → 실제 ID, _isSaving 제거)
+      // 온라인 상태에서 실제 ID를 받은 경우 처리
       if (result.createdId) {
-        queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
-          return old.map(r =>
-            r.id === tempId
-              ? { ...r, id: result.createdId!, _isSaving: false }
-              : r
-          );
-        });
+        const completedRecord = { ...optimisticRecord, id: result.createdId, _isSaving: false };
+        if (isPending) {
+          // 초기 로딩 중이면 임시 저장된 레코드 업데이트
+          const idx = pendingOptimisticRecords.current.findIndex(r => r.id === tempId);
+          if (idx !== -1) {
+            pendingOptimisticRecords.current[idx] = completedRecord;
+          }
+        } else {
+          // 즉시 반영
+          queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
+            return old.map(r =>
+              r.id === tempId ? completedRecord : r
+            );
+          });
+        }
       }
 
       // 초기 로딩 중이었거나 오프라인 상태였으면 갱신
