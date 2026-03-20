@@ -388,8 +388,19 @@ function Home() {
         await showAlert('오프라인 상태입니다. 동기화 대기열에 추가되었습니다.');
       }
 
-      // 초기 로딩 중이었으면 여기서 갱신
-      if (isPending) {
+      // 온라인 상태에서 실제 ID를 받은 경우 캐시 업데이트 (tempId → 실제 ID, _isSaving 제거)
+      if (result.createdId) {
+        queryClient.setQueryData(['records'], (old: RecordWithMeta[] = []) => {
+          return old.map(r =>
+            r.id === tempId
+              ? { ...r, id: result.createdId!, _isSaving: false }
+              : r
+          );
+        });
+      }
+
+      // 초기 로딩 중이었거나 오프라인 상태였으면 갱신
+      if (isPending || result.queued) {
         await queryClient.invalidateQueries({ queryKey: ['records'] });
       }
     } catch (error) {
