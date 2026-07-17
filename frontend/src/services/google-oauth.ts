@@ -10,7 +10,8 @@ const TOKEN_EXPIRY_KEY = 'google_token_expiry';
 const GSI_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 
 // 자동 갱신 설정
-const REFRESH_THRESHOLD = 30 * 60 * 1000; // 30분 (밀리초)
+// 짧은 입력 세션 도중에 만료되지 않도록 1분만 여유를 둡니다.
+const REFRESH_THRESHOLD = 60 * 1000;
 
 interface TokenResponse {
   access_token: string;
@@ -268,7 +269,8 @@ export async function signInWithGoogle(): Promise<GoogleUser> {
       return;
     }
 
-    interactiveClient.requestAccessToken({ prompt: 'consent' });
+    // 이미 동의한 범위는 재사용하고, Google이 필요하다고 판단할 때만 동의를 요청합니다.
+    interactiveClient.requestAccessToken();
   });
 }
 
@@ -276,7 +278,7 @@ export async function signInWithGoogle(): Promise<GoogleUser> {
  * 자동 토큰 갱신 초기화
  *
  * - 앱 실행 시점에 토큰 상태 확인 및 갱신
- * - foreground 진입 시 30분 미만 남은 경우 silent 갱신
+ * - foreground 진입 시 1분 미만 남은 경우만 갱신
  */
 export async function initAutoRefresh() {
   try {
@@ -416,17 +418,26 @@ export async function getAccessToken(): Promise<string> {
 }
 
 /**
+ * 로컬 인증 정보만 정리
+ *
+ * 토큰 만료나 일시적인 갱신 실패는 Google 권한 철회로 연결하지 않습니다.
+ */
+export function clearLocalGoogleAuth() {
+  accessToken = null;
+  tokenExpiry = null;
+  localStorage.removeItem('user');
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+  localStorage.removeItem(TOKEN_EXPIRY_KEY);
+}
+
+/**
  * 로그아웃
  *
  * 주의: 오프라인 대기열과 캐시도 초기화해야 보안상 안전함
  */
 export function signOutGoogle() {
   const token = accessToken;
-  accessToken = null;
-  tokenExpiry = null;
-  localStorage.removeItem('user');
-  localStorage.removeItem(TOKEN_STORAGE_KEY);
-  localStorage.removeItem(TOKEN_EXPIRY_KEY);
+  clearLocalGoogleAuth();
 
   // GSI로 로그아웃 요청
   if (window.google && window.google.accounts && window.google.accounts.oauth2) {

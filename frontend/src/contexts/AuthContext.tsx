@@ -2,7 +2,12 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getCurrentUser, signOutGoogle, clearOfflineData } from '../services/google-oauth';
+import {
+  clearLocalGoogleAuth,
+  clearOfflineData,
+  getCurrentUser,
+  signOutGoogle,
+} from '../services/google-oauth';
 
 interface User {
   email: string;
@@ -35,6 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, [queryClient]);
 
+  // 토큰 만료나 갱신 실패 시에는 로컬 인증만 정리합니다.
+  // Google 동의 권한과 오프라인 대기열은 명시적 로그아웃 때만 제거합니다.
+  const clearExpiredSession = useCallback(() => {
+    queryClient.clear();
+    clearLocalGoogleAuth();
+    setUser(null);
+  }, [queryClient]);
+
   // 인증 에러 핸들러 설정 (React Query v5: queryCache 'updated' 이벤트 감지)
   useEffect(() => {
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
@@ -52,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             error.message.startsWith('Token verification failed') ||
             error.message.includes('Token verification failed')
           ) {
-            logout();
+            clearExpiredSession();
             navigate('/login');
           }
         }
@@ -60,18 +73,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [queryClient, logout, navigate]);
+  }, [queryClient, clearExpiredSession, navigate]);
 
   // 토큰 갱신 실패 이벤트 핸들러 (google-oauth.ts에서 발생)
   useEffect(() => {
     const handleAuthExpired = () => {
-      logout();
+      clearExpiredSession();
       navigate('/login');
     };
 
     window.addEventListener('moni-auth-expired', handleAuthExpired);
     return () => window.removeEventListener('moni-auth-expired', handleAuthExpired);
-  }, [logout, navigate]);
+  }, [clearExpiredSession, navigate]);
 
   return (
     <AuthContext.Provider value={{ user, setUser, logout }}>
