@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { overlay } from 'overlay-kit';
 import { useStats, transformCategoryData } from '../hooks/useStats';
@@ -7,9 +8,113 @@ import ChangeHistoryModal from '../components/ChangeHistoryModal';
 import { useRecordsController } from '../hooks/useRecordsController';
 import { PieChart, Pie, Cell, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceDot } from 'recharts';
 import YearMonthPickerModal from '../components/YearMonthPickerModal';
+import { api } from '../services/api';
+import type { ApiRecord } from '../services/api';
 
 type TabType = 'monthly' | 'yearly';
 const EMPTY_BY_CATEGORY: Record<string, number> = {};
+
+type TrendPeriod = 'daily' | 'monthly';
+
+function CategoryTrendChart({
+  records,
+  period,
+  year,
+  month,
+  isLoading,
+}: {
+  records: ApiRecord[];
+  period: TrendPeriod;
+  year: number;
+  month?: number;
+  isLoading: boolean;
+}) {
+  const categories = useMemo(() => {
+    const totals = new Map<string, number>();
+    records.forEach((record) => {
+      if (record.amount >= 0) return;
+      const category = record.category || '미분류';
+      totals.set(category, (totals.get(category) || 0) + Math.abs(record.amount));
+    });
+    return Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).map(([name]) => name);
+  }, [records]);
+
+  // null은 최초 기본값(지출 상위 4개), []은 사용자가 모두 끈 상태를 뜻한다.
+  const [selected, setSelected] = useState<string[] | null>(null);
+  const visibleCategories = selected === null
+    ? categories.slice(0, 4)
+    : selected.filter((category) => categories.includes(category));
+
+  const chartData = useMemo(() => {
+    const pointCount = period === 'daily' ? getDaysInMonth(year, month || 1) : 12;
+    const points: Array<Record<string, number | string>> = Array.from({ length: pointCount }, (_, index) => ({
+      label: period === 'daily' ? `${index + 1}일` : `${index + 1}월`,
+    }));
+
+    records.forEach((record) => {
+      if (record.amount >= 0) return;
+      const date = new Date(`${record.date}T00:00:00`);
+      const index = period === 'daily' ? date.getDate() - 1 : date.getMonth();
+      const category = record.category || '미분류';
+      if (!points[index]) return;
+      points[index][category] = toSafeNumber(points[index][category]) + Math.abs(record.amount);
+    });
+    return points;
+  }, [records, period, year, month]);
+
+  const toggleCategory = (category: string) => {
+    const current = selected ?? categories.slice(0, 4);
+    setSelected(current.includes(category)
+      ? current.filter((item) => item !== category)
+      : [...current, category]);
+  };
+
+  if (isLoading) return <ChartSkeleton height="h-64" />;
+  if (categories.length === 0) {
+    return <div className="flex h-48 items-center justify-center text-sm text-gray-500">지출 데이터가 없습니다.</div>;
+  }
+
+  return (
+    <div>
+      <div className="mb-5 flex flex-wrap gap-2" aria-label="표시할 카테고리 선택">
+        {categories.map((category, index) => {
+          const active = visibleCategories.includes(category);
+          const color = getCategoryColors(category, index).color;
+          return (
+            <button
+              key={category}
+              type="button"
+              onClick={() => toggleCategory(category)}
+              aria-pressed={active}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${active ? 'bg-white shadow-sm' : 'border-gray-200 bg-gray-50 text-gray-400'}`}
+              style={active ? { borderColor: color, color } : undefined}
+            >
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: active ? color : '#d1d5db' }} />
+              {category}
+            </button>
+          );
+        })}
+      </div>
+      <div className="h-64 w-full">
+        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 4, left: -18, bottom: 0 }}>
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} interval={period === 'daily' ? 4 : 1} />
+            <YAxis tickFormatter={(value) => value >= 10000 ? `${Math.round(value / 10000)}만` : String(value)} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
+            <Tooltip formatter={(value) => [`${toSafeNumber(value).toLocaleString()}원`, '']} />
+            {visibleCategories.map((category) => {
+              const index = categories.indexOf(category);
+              const color = getCategoryColors(category, index).color;
+              return <Area key={category} type="monotone" dataKey={category} name={category} stroke={color} fill={color} fillOpacity={0.05} strokeWidth={2.5} dot={{ r: 2.5, fill: color, strokeWidth: 0 }} activeDot={{ r: 4 }} connectNulls />;
+            })}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="mt-3 text-xs leading-5 text-gray-500">
+        {period === 'daily' ? '일별 지출이 발생한 시점을 비교합니다.' : '월별 지출 변화와 계절적인 소비 패턴을 비교합니다.'}
+      </p>
+    </div>
+  );
+}
 
 // 스켈레톤 컴포넌트
 function ChartSkeleton({ height = "h-48" }: { height?: string }) {
@@ -221,6 +326,7 @@ function getCategoryIcon(categoryLabel: string, color: string): ReactNode {
 }
 
 function getCategoryColors(categoryLabel: string, order: number): { color: string; bgColor: string } {
+  const safeOrder = Number.isInteger(order) && order >= 0 ? order : 0;
   const normalized = normalizeCategoryKey(categoryLabel);
   if (normalized.includes('식비')) {
     return { color: '#3b67d0', bgColor: '#3b67d0' };
@@ -244,7 +350,7 @@ function getCategoryColors(categoryLabel: string, order: number): { color: strin
     { color: '#c8a2dc', bgColor: '#c8a2dc' },
     { color: '#9ba6b6', bgColor: '#9ba6b6' },
   ];
-  return fallback[order % fallback.length];
+  return fallback[safeOrder % fallback.length];
 }
 
 function getCumulativeAtProgress(
@@ -292,7 +398,24 @@ function Stats() {
     return Number.isInteger(urlMonth) && urlMonth >= 1 && urlMonth <= 12 ? urlMonth : defaultMonth;
   });
 
-  const { data: stats, isPending, error, refetch } = useStats(selectedYear, selectedMonth);
+  const yearlyCutoffMonth = selectedYear < defaultYear ? 12 : defaultMonth;
+  const statsMonth = activeTab === 'yearly' ? yearlyCutoffMonth : selectedMonth;
+  const { data: stats, isPending, error, refetch } = useStats(selectedYear, statsMonth);
+  const { data: yearlyRecords = [], isPending: areTrendRecordsPending } = useQuery<ApiRecord[]>({
+    queryKey: ['stats-category-trends', selectedYear],
+    queryFn: async () => {
+      const response = await api.getRecords({
+        startDate: `${selectedYear}-01-01`,
+        endDate: `${selectedYear}-12-31`,
+        limit: 10000,
+      });
+      return response.data || [];
+    },
+  });
+  const monthlyTrendRecords = useMemo(
+    () => yearlyRecords.filter((record) => record.date.startsWith(`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`)),
+    [yearlyRecords, selectedYear, selectedMonth]
+  );
 
   useEffect(() => {
     const currentYear = searchParams.get('year');
@@ -665,7 +788,7 @@ function Stats() {
                       {isPending ? (
                         <ChartSkeleton />
                       ) : (
-                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}>
                           <AreaChart data={dailyComparisonData}>
                             <defs>
                               <linearGradient id="previousSpendFill" x1="0" y1="0" x2="0" y2="1">
@@ -785,6 +908,23 @@ function Stats() {
                   </div>
                 </section>
 
+                <section className="overflow-hidden rounded-xl bg-white shadow-sm">
+                  <div className="border-b border-gray-200 px-5 py-3">
+                    <h3 className="text-base font-semibold text-gray-900">카테고리별 일간 지출 추이</h3>
+                    <p className="mt-0.5 text-xs text-gray-500">{selectedMonth}월의 소비가 언제 집중됐는지 확인해보세요.</p>
+                  </div>
+                  <div className="p-5">
+                    <CategoryTrendChart
+                      key={`daily-${selectedYear}-${selectedMonth}`}
+                      records={monthlyTrendRecords}
+                      period="daily"
+                      year={selectedYear}
+                      month={selectedMonth}
+                      isLoading={areTrendRecordsPending}
+                    />
+                  </div>
+                </section>
+
                 {/* 카테고리별 지출 */}
                 <section className="overflow-hidden rounded-xl bg-white shadow-sm">
                   <div className="border-b border-gray-200 px-5 py-3">
@@ -895,6 +1035,7 @@ function Stats() {
                     )}
                   </div>
                 </section>
+
               </div>
             </div>
           )}
@@ -961,7 +1102,7 @@ function Stats() {
                     ) : (
                       <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
                         <div className="h-44 w-full sm:h-48 sm:w-48">
-                          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}>
                             <PieChart>
                               <Pie
                                 data={[
@@ -1013,20 +1154,36 @@ function Stats() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div className="rounded-lg bg-white p-4 text-center shadow-sm">
-                          <div className="mb-2 min-w-0 break-keep text-[clamp(2rem,8vw,3rem)] font-bold leading-tight text-green-600">
+                        <div className="min-w-0 rounded-lg bg-white p-4 text-center shadow-sm">
+                          <div className="mb-2 min-w-0 whitespace-nowrap text-[clamp(2rem,8vw,3rem)] font-bold leading-tight text-green-600 tabular-nums sm:text-2xl">
                             {yearSavings.toLocaleString()}원
                           </div>
                           <div className="text-sm text-gray-500">연간 저축</div>
                         </div>
-                        <div className="rounded-lg bg-white p-4 text-center shadow-sm">
-                          <div className="mb-2 min-w-0 break-keep text-[clamp(2rem,8vw,3rem)] font-bold leading-tight text-red-600">
+                        <div className="min-w-0 rounded-lg bg-white p-4 text-center shadow-sm">
+                          <div className="mb-2 min-w-0 whitespace-nowrap text-[clamp(2rem,8vw,3rem)] font-bold leading-tight text-red-600 tabular-nums sm:text-2xl">
                             {yearExpense.toLocaleString()}원
                           </div>
                           <div className="text-sm text-gray-500">연간 지출</div>
                         </div>
                       </div>
                     )}
+                  </div>
+                </section>
+
+                <section className="overflow-hidden rounded-xl bg-white shadow-sm">
+                  <div className="border-b border-gray-200 px-5 py-3">
+                    <h3 className="text-base font-semibold text-gray-900">카테고리별 월간 지출 추이</h3>
+                    <p className="mt-0.5 text-xs text-gray-500">계절에 따라 달라지는 소비 흐름을 한눈에 비교해보세요.</p>
+                  </div>
+                  <div className="p-5">
+                    <CategoryTrendChart
+                      key={`monthly-${selectedYear}`}
+                      records={yearlyRecords}
+                      period="monthly"
+                      year={selectedYear}
+                      isLoading={areTrendRecordsPending}
+                    />
                   </div>
                 </section>
               </div>
