@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useEffectEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { overlay } from 'overlay-kit';
 import { api, type Template } from '../services/api';

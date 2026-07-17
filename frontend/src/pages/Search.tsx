@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { overlay } from 'overlay-kit';
 import DetailEntry, { type Record as TransactionRecord } from '../components/DetailEntry';
 import RecordListItem from '../components/RecordListItem';

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import { overlay } from 'overlay-kit';
 import { useStats, transformCategoryData } from '../hooks/useStats';
 import ChangeHistoryModal from '../components/ChangeHistoryModal';
